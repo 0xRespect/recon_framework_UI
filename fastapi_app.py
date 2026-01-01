@@ -232,6 +232,62 @@ async def delete_target(domain: str, db: AsyncSessionLocal = Depends(get_async_s
         await session.commit()
     return {"message": f"Deleted data for {domain}"}
 
+@app.get("/api/export/{format}")
+async def export_assets(format: str, domain: str, tag: str = None, db: AsyncSessionLocal = Depends(get_async_session)):
+    from sqlalchemy.future import select
+    from fastapi.responses import StreamingResponse
+    import io
+    
+    if format not in ["txt"]:
+        return JSONResponse(status_code=400, content={"error": "Unsupported format"})
+    
+    async with db as session:
+        # Fetch URLs with optional tag filter
+        query = select(CrawledURL).filter_by(target_domain=domain)
+        if tag:
+            # We use ILIKE logic or similar. Since tags are stored as "xss,sqli", 
+            # contains(tag) is sufficient.
+            query = query.filter(CrawledURL.tags.contains(tag))
+            
+        result_urls = await session.execute(query)
+        urls = [u.url for u in result_urls.scalars().all()]
+        
+        # Only include subdomains if NO tag is specified (Full Dump)
+        subs = []
+        if not tag:
+             result_subs = await session.execute(select(Subdomain).filter_by(target_domain=domain))
+             subs = [s.subdomain for s in result_subs.scalars().all()]
+        
+        # Combine unique
+        all_assets = sorted(list(set(urls + subs)))
+        content = "\n".join(all_assets)
+        
+        filename = f"{domain}_{tag}.txt" if tag else f"{domain}_full_assets.txt"
+        
+        return StreamingResponse(
+            io.BytesIO(content.encode()),
+            media_type="text/plain",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+@app.get("/api/view/raw")
+async def view_raw_assets(domain: str, db: AsyncSessionLocal = Depends(get_async_session)):
+    from sqlalchemy.future import select
+    from fastapi.responses import PlainTextResponse
+    
+    async with db as session:
+        # Fetch URLs
+        result_urls = await session.execute(select(CrawledURL).filter_by(target_domain=domain))
+        urls = [u.url for u in result_urls.scalars().all()]
+        
+        # Fetch Subdomains
+        result_subs = await session.execute(select(Subdomain).filter_by(target_domain=domain))
+        subs = [s.subdomain for s in result_subs.scalars().all()]
+        
+        all_assets = sorted(list(set(urls + subs)))
+        content = "\n".join(all_assets)
+        return PlainTextResponse(content)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

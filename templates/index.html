@@ -29,7 +29,8 @@
     <aside class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col justify-between">
         <div>
             <div class="h-16 flex items-center justify-center border-b border-gray-700">
-                <h1 class="text-xl font-bold text-green-400 tracking-wider">RECON<span class="text-white">FW</span></h1>
+                <h1 class="text-xl font-bold text-green-400 tracking-wider">RECON<span class="text-white">0xRes</span>
+                </h1>
             </div>
             <nav class="mt-6 px-4 space-y-2">
                 <a href="#" onclick="showTab('dashboard')"
@@ -181,11 +182,44 @@
                                 <span id="inventory-detail-title">Assets</span>
                             </h3>
                         </div>
-                        <div class="flex space-x-2">
+                        <div class="flex items-center gap-2">
+                            <!-- Export Categories -->
+                            <div class="flex bg-gray-900 rounded-lg p-1 gap-1">
+                                <button onclick="exportAssets('txt')" title="Export All"
+                                    class="px-2 py-1 text-xs font-bold text-gray-300 hover:text-white bg-gray-700 hover:bg-gray-600 rounded">
+                                    ALL
+                                </button>
+                                <button onclick="exportAssets('txt', 'xss')" title="Export XSS Params"
+                                    class="px-2 py-1 text-xs font-bold text-red-300 hover:text-white bg-red-900/50 hover:bg-red-900 rounded">
+                                    XSS
+                                </button>
+                                <button onclick="exportAssets('txt', 'sqli')" title="Export SQLi Params"
+                                    class="px-2 py-1 text-xs font-bold text-yellow-300 hover:text-white bg-yellow-900/50 hover:bg-yellow-900 rounded">
+                                    SQLi
+                                </button>
+                                <button onclick="exportAssets('txt', 'lfi')" title="Export LFI Params"
+                                    class="px-2 py-1 text-xs font-bold text-blue-300 hover:text-white bg-blue-900/50 hover:bg-blue-900 rounded">
+                                    LFI
+                                </button>
+                                <button onclick="exportAssets('txt', 'secrets')" title="Export Secrets"
+                                    class="px-2 py-1 text-xs font-bold text-green-300 hover:text-white bg-green-900/50 hover:bg-green-900 rounded">
+                                    SECRETS
+                                </button>
+                            </div>
+
+                            <div class="w-px h-6 bg-gray-600 mx-2"></div>
+
+                            <button onclick="viewRawAssets()" title="View Raw"
+                                class="p-1.5 bg-gray-700 text-gray-300 rounded hover:bg-gray-600 hover:text-white transition-colors">
+                                <i data-lucide="file-text" class="w-4 h-4"></i>
+                            </button>
+
+                            <div class="w-px h-6 bg-gray-600 mx-2"></div>
+
                             <button id="btn-view-assets" onclick="toggleDetailView('assets')"
-                                class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold">Assets</button>
+                                class="px-3 py-1.5 bg-blue-600 text-white rounded text-sm font-bold">Assets</button>
                             <button id="btn-view-vulns" onclick="toggleDetailView('vulns')"
-                                class="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg text-sm font-bold hover:bg-gray-600">Vulnerabilities</button>
+                                class="px-3 py-1.5 bg-gray-700 text-gray-300 rounded text-sm font-bold hover:bg-gray-600">Vulns</button>
                         </div>
                     </div>
 
@@ -793,6 +827,24 @@
         // Initial Data Load
         fetchTargets();
 
+        // Export Actions
+        function exportAssets(format, tag = null) {
+            if (!currentDetailDomain) return;
+            let url = `/api/export/${format}?domain=${encodeURIComponent(currentDetailDomain)}`;
+            if (tag) {
+                url += `&tag=${encodeURIComponent(tag)}`;
+            }
+            window.location.href = url;
+        }
+
+        function viewRawAssets() {
+            if (!currentDetailDomain) return;
+            const url = `/api/view/raw?domain=${encodeURIComponent(currentDetailDomain)}`;
+            window.open(url, '_blank');
+        }
+
+        // Initialize Lucide icons
+        lucide.createIcons();
     </script>
 </body>
 

@@ -154,11 +154,18 @@ async def run_ffuf(target_url, preset_name="standard", broadcast_callback=None, 
              from urllib.parse import urlparse
              from sqlalchemy import select
              
+             processed_urls = set()
+             
              async with AsyncSessionLocal() as db:
                  for res in results:
                      url = res.get('url')
                      # Re-validate URL
                      if not url: continue
+                     
+                     # Avoid duplicates in the current batch
+                     if url in processed_urls:
+                         continue
+                     processed_urls.add(url)
                      
                      status = res.get('status')
                      length = res.get('length')
