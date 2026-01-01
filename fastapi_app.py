@@ -129,6 +129,54 @@ async def cancel_scan(scan_id: str):
         # It might be already finished or invalid
         return JSONResponse(status_code=404, content={"message": "Scan ID not found or already finished"})
 
+from pydantic import BaseModel
+from modules.vuln_scanning import run_nuclei, run_sqli_scan, run_xss_scan, run_lfi_scan
+
+class ScanVulnRequest(BaseModel):
+    domain: str
+    scan_type: str  # sqli, xss, lfi
+    mode: str       # smart, all
+
+@app.post("/api/scan/vuln")
+async def start_vuln_scan(req: ScanVulnRequest, background_tasks: BackgroundTasks, db: AsyncSessionLocal = Depends(get_async_session)):
+    from sqlalchemy.future import select
+    
+    scan_id = str(uuid.uuid4())
+    
+    # Fetch URLs based on mode
+    async with db as session:
+        query = select(CrawledURL).filter_by(target_domain=req.domain)
+        
+        if req.mode == "smart":
+            # Filter by tags
+            # We assume tags are stored as comma-separated: "xss,sqli"
+            if req.scan_type == "sqli":
+                query = query.filter(CrawledURL.tags.contains("sqli"))
+            elif req.scan_type == "xss":
+                query = query.filter(CrawledURL.tags.contains("xss"))
+            elif req.scan_type == "lfi":
+                query = query.filter(CrawledURL.tags.contains("lfi"))
+                
+        result = await session.execute(query)
+        urls = [u.url for u in result.scalars().all()]
+    
+    if not urls:
+        # If no URLs found for 'smart', maybe fallback or just warn?
+        # We'll just run it with empty list, the module will handle logging "No URLs".
+        pass
+        
+    # Launch Background Task
+    if req.scan_type == "sqli":
+        background_tasks.add_task(run_sqli_scan, urls, req.domain, load_config(), broadcast_wrapper, scan_id)
+    elif req.scan_type == "xss":
+        background_tasks.add_task(run_xss_scan, urls, req.domain, load_config(), broadcast_wrapper, scan_id)
+    elif req.scan_type == "lfi":
+        background_tasks.add_task(run_lfi_scan, urls, req.domain, load_config(), broadcast_wrapper, scan_id)
+    else:
+        raise HTTPException(status_code=400, detail="Invalid scan type")
+        
+    return {"message": f"Started {req.scan_type.upper()} scan ({req.mode})", "scan_id": scan_id, "target_count": len(urls)}
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)

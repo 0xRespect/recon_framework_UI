@@ -45,6 +45,33 @@ RUN go install -v github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest
 # 8. FFUF
 RUN go install github.com/ffuf/ffuf/v2@latest
 
+# 9. qsreplace (TomNomNom) - For SQLi/XSS pipelines
+RUN go install github.com/tomnomnom/qsreplace@latest
+
+# 10. gf (TomNomNom) - For pattern matching (wrapper)
+RUN go install github.com/tomnomnom/gf@latest
+
+# 11. Uro (Python) - For url filtering
+RUN pip install uro
+
+# 12. SQLMap
+RUN apt-get update && apt-get install -y sqlmap
+
+# 13. Gxss (KathanP19) - Reflected XSS param extraction
+RUN go install github.com/KathanP19/Gxss@latest
+
+# 14. Dalfox (hahwul) - XSS Scanner
+RUN go install github.com/hahwul/dalfox/v2@latest
+
+# 15. kxss (Emoe/TomNomNom)
+RUN go install github.com/Emoe/kxss@latest
+
+# 16. airixss (ferreiraklet)
+RUN go install github.com/ferreiraklet/airixss@latest
+
+# 17. Waybackurls (TomNomNom)
+RUN go install github.com/tomnomnom/waybackurls@latest
+
 # Install Wordlists (SecLists)
 # Using a specific commit depth or just a subset might be faster, but user requested 'big.txt' which is large.
 # We'll clone the repository to a standard location.
