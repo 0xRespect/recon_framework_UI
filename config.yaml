@@ -1,0 +1,40 @@
+# ==============================================================================
+#                 Recon Framework - Central Configuration File
+# ==============================================================================
+#
+# Place your API keys here.
+# If a key is missing, the tool that requires it will be skipped automatically.
+
+api_keys:
+  github: ""
+  shodan: ""
+  virustotal: ""
+  securitytrails: ""
+  censys_id: ""
+  censys_secret: ""
+
+# ==============================================================================
+# Wordlists Paths
+# ==============================================================================
+
+wordlists:
+  # Wordlist for subdomain bruteforcing
+  subdomains: "/path/to/your/subdomains.txt"
+
+  # Wordlist for directory and file fuzzing
+  fuzzing: "/path/to/your/fuzzing_wordlist.txt"
+
+# ==============================================================================
+# General Performance Settings
+# ==============================================================================
+
+settings:
+  # Number of concurrent threads to use by tools like httpx
+  threads: 50
+
+  # Network timeout in seconds for each request
+  timeout: 10
+
+  # Maximum time in seconds to wait for a single process (like gau or katana) to complete.
+  # After this time, the framework will stop waiting for it. 600 seconds = 10 minutes.
+  process_timeout: 600

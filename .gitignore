@@ -1,0 +1,23 @@
+# Ignore output directories
+recon_*
+
+# Ignore compressed files
+*.zip
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+
+# Ignore temporary files
+tmp_*.txt
+
+# Exclude Database
+*.db
+recon.db
+
+# Exclude Environment Config
+.env
+.venv/
+venv/
+.idea/
+.vscode/

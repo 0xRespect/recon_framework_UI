@@ -1,0 +1,27 @@
+version: '3.8'
+
+services:
+  recon-framework:
+    build: .
+    container_name: recon_framework
+    # Mount the current directory to /app so output files are saved to the host
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    # Enable TTY and Stdin for interactive mode
+    tty: true
+    stdin_open: true
+    # Keep the container running if needed, though the entrypoint is main.py
+    # This allows us to run specific commands if we override the entrypoint
+    # e.g. docker-compose run recon-framework python main.py example.com
+    # To run the API: docker-compose run -p 8000:8000 recon-framework uvicorn fastapi_app:app --host 0.0.0.0
+    entrypoint: []
+    command: uvicorn fastapi_app:app --host 0.0.0.0 --port 8000 --reload
+
+  mock-target:
+    build: ./mock_target
+    container_name: mock_target
+    ports:
+      - "5000:5000"
+

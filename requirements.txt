@@ -1,0 +1,11 @@
+rich
+pyyaml
+SQLAlchemy
+fastapi
+uvicorn
+httpx
+aiosqlite
+greenlet
+websockets
+jinja2
+uro

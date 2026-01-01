@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RECON // MASTER CONTROL</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        /* Custom Scrolls and Fonts if needed */
+        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+
+        body {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-900 text-gray-100 h-screen overflow-hidden flex">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-gray-800 border-r border-gray-700 flex flex-col justify-between">
+        <div>
+            <div class="h-16 flex items-center justify-center border-b border-gray-700">
+                <h1 class="text-xl font-bold text-green-400 tracking-wider">RECON<span class="text-white">FW</span></h1>
+            </div>
+            <nav class="mt-6 px-4 space-y-2">
+                <a href="#" onclick="showTab('dashboard')"
+                    class="nav-item flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
+                    id="nav-dashboard">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5 mr-3"></i> Dashboard
+                </a>
+                <a href="#" onclick="showTab('targets')"
+                    class="nav-item flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
+                    id="nav-targets">
+                    <i data-lucide="target" class="w-5 h-5 mr-3"></i> Targets
+                </a>
+                <a href="#" onclick="showTab('live')"
+                    class="nav-item flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
+                    id="nav-live">
+                    <i data-lucide="terminal" class="w-5 h-5 mr-3"></i> Live Console
+                </a>
+                <a href="#" onclick="showTab('inventory')"
+                    class="nav-item flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
+                    id="nav-inventory">
+                    <i data-lucide="database" class="w-5 h-5 mr-3"></i> Inventory
+                </a>
+                <a href="#" onclick="showTab('fuzzing')"
+                    class="nav-item flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
+                    id="nav-fuzzing">
+                    <i data-lucide="zap" class="w-5 h-5 mr-3"></i> Fuzzing (FFUF)
+                </a>
+                <a href="#" onclick="showTab('vulns')"
+                    class="nav-item flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
+                    id="nav-vulns">
+                    <i data-lucide="shield-alert" class="w-5 h-5 mr-3"></i> Vulnerabilities
+                </a>
+            </nav>
+        </div>
+        <div class="p-4 border-t border-gray-700">
+            <div class="flex items-center text-sm text-gray-400">
+                <div id="ws-status-dot" class="w-2 h-2 rounded-full bg-red-500 mr-2"></div>
+                <span id="ws-status-text">Disconnected</span>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col h-full relative">
+        <!-- Header -->
+        <header class="h-16 bg-gray-800 border-b border-gray-700 flex items-center justify-between px-6">
+            <h2 id="page-title" class="text-lg font-semibold text-white">Dashboard</h2>
+            <div class="flex items-center space-x-4">
+                <button class="p-2 hover:bg-gray-700 rounded-full"><i data-lucide="bell"
+                        class="w-5 h-5 text-gray-400"></i></button>
+                <button class="p-2 hover:bg-gray-700 rounded-full"><i data-lucide="settings"
+                        class="w-5 h-5 text-gray-400"></i></button>
+            </div>
+        </header>
+
+        <!-- Content Views -->
+        <div class="flex-1 overflow-auto p-6 relative">
+
+            <!-- Dashboard View -->
+            <div id="view-dashboard" class="content-view space-y-6">
+                <!-- ... dashboard content ... -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                        <h3 class="text-gray-400 text-sm font-medium">Total Targets</h3>
+                        <p class="text-3xl font-bold text-white mt-2" id="stat-targets">0</p>
+                    </div>
+                    <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                        <h3 class="text-gray-400 text-sm font-medium">Subdomains Discovered</h3>
+                        <p class="text-3xl font-bold text-green-400 mt-2" id="stat-subdomains">0</p>
+                    </div>
+                    <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                        <h3 class="text-gray-400 text-sm font-medium">Vulnerabilities</h3>
+                        <p class="text-3xl font-bold text-red-400 mt-2" id="stat-vulns">0</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Targets View -->
+            <div id="view-targets" class="content-view hidden">
+                <!-- ... targets content ... -->
+                <div class="bg-gray-800 rounded-xl border border-gray-700 p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h3 class="text-lg font-bold text-white">Target List</h3>
+                        <button onclick="document.getElementById('addTargetModal').classList.remove('hidden')"
+                            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center">
+                            <i data-lucide="plus" class="w-4 h-4 mr-2"></i> Add Target
+                        </button>
+                    </div>
+                    <table class="w-full text-left">
+                        <thead>
+                            <tr class="text-gray-400 text-sm border-b border-gray-700">
+                                <th class="pb-3">Domain</th>
+                                <th class="pb-3">Last Scan</th>
+                                <th class="pb-3">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="targets-table-body" class="text-sm">
+                            <!-- Populated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Live Console View -->
+            <div id="view-live" class="content-view hidden h-full flex flex-col">
+                <!-- ... live content ... -->
+                <div class="flex justify-between items-center mb-2 px-1">
+                    <span class="text-xs text-gray-400 uppercase tracking-widest">Live Terminal</span>
+                    <button id="btn-stop-scan" onclick="stopScan()"
+                        class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-bold hidden flex items-center">
+                        <i data-lucide="square" class="w-3 h-3 mr-1 fill-current"></i> STOP SCAN
+                    </button>
+                </div>
+                <div
+                    class="bg-black border border-gray-700 rounded-xl p-4 flex-1 overflow-auto font-mono text-sm shadow-2xl relative">
+                    <div id="console-output" class="space-y-1 pb-4">
+                        <div class="text-gray-500">System initialization... Ready.</div>
+                    </div>
+                    <!-- Auto-scroll anchor -->
+                    <div id="console-anchor"></div>
+                </div>
+            </div>
+
+            <!-- Other views placeholders -->
+            <!-- Inventory View -->
+            <div id="view-inventory" class="content-view hidden space-y-4">
+                <!-- ... inventory content ... -->
+                <!-- 1. Grid View (Dashboard of Domains) -->
+                <div id="inventory-grid" class="space-y-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-lg font-bold text-white">Asset Inventory Dashboard</h3>
+                        <button onclick="fetchInventoryStats()" class="text-sm text-blue-400 hover:text-blue-300"><i
+                                data-lucide="refresh-cw" class="w-4 h-4 inline"></i> Refresh</button>
+                    </div>
+                    <div id="inventory-grid-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- Cards injected here -->
+                    </div>
+                </div>
+
+                <!-- 2. Detail View (Table) -->
+                <div id="inventory-detail"
+                    class="hidden flex flex-col h-[calc(100vh-8rem)] bg-gray-800 rounded-xl border border-gray-700 p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <div>
+                            <button onclick="closeInventoryDetail()"
+                                class="text-gray-400 hover:text-white mb-2 text-sm flex items-center gap-1"><i
+                                    data-lucide="arrow-left" class="w-4 h-4"></i> Back to Dashboard</button>
+                            <h3 class="text-lg font-bold text-white flex gap-4 items-center">
+                                <span id="inventory-detail-title">Assets</span>
+                            </h3>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button id="btn-view-assets" onclick="toggleDetailView('assets')"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold">Assets</button>
+                            <button id="btn-view-vulns" onclick="toggleDetailView('vulns')"
+                                class="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg text-sm font-bold hover:bg-gray-600">Vulnerabilities</button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-auto flex-1 border border-gray-700 rounded-lg">
+                        <table class="w-full text-left font-mono text-sm relative">
+                            <thead class="bg-gray-900 sticky top-0 z-10">
+                                <tr class="text-gray-400 border-b border-gray-700">
+                                    <th class="p-3 w-20">Tool</th>
+                                    <th class="p-3">URL</th>
+                                    <th class="p-3 w-48">Tags</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-table-body" class="divide-y divide-gray-800 text-gray-300">
+                                <!-- Populated by JS -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fuzzing View (Placeholder) -->
+            <div id="view-fuzzing" class="content-view hidden space-y-6">
+                <div class="bg-gray-800 rounded-xl border border-gray-700 p-6">
+                    <h3 class="text-xl font-bold text-white mb-6 flex items-center">
+                        <i data-lucide="zap" class="w-6 h-6 mr-3 text-yellow-500"></i> FFUF Directory Fuzzing
+                    </h3>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Configuration -->
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-gray-400 text-sm font-bold mb-2">Target URL</label>
+                                <input type="text" id="ffuf-target-input" placeholder="https://example.com/FUZZ"
+                                    class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500">
+                            </div>
+                            <div>
+                                <label class="block text-gray-400 text-sm font-bold mb-2">Scan Profile</label>
+                                <select id="ffuf-preset-select" onchange="toggleCustomWordlist()"
+                                    class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500">
+                                    <option value="deep">Deep & Aggressive (Big Wordlist, All Exts, Recursion)</option>
+                                    <option value="standard">Standard (Medium, Common Exts, Fast)</option>
+                                    <option value="custom">Custom (Select Wordlist)</option>
+                                </select>
+                            </div>
+                            <!-- Custom Wordlist Selection -->
+                            <div id="ffuf-custom-wordlist" class="hidden">
+                                <label class="block text-gray-400 text-sm font-bold mb-2">Select Wordlist</label>
+                                <select id="ffuf-wordlist-select"
+                                    class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500">
+                                    <option value="">Loading wordlists...</option>
+                                </select>
+                            </div>
+                            <button onclick="startFuzzing()"
+                                class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center">
+                                <i data-lucide="play" class="w-4 h-4 mr-2"></i> Start Fuzzing
+                            </button>
+                        </div>
+
+                        <!-- Output Placeholder -->
+                        <div id="ffuf-output"
+                            class="bg-black rounded-lg border border-gray-700 p-4 font-mono text-sm text-gray-400 overflow-y-auto max-h-96">
+                            <p class="mb-2 text-yellow-500"># Output Window</p>
+                            <p>Waiting for scan configuration...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="view-vulns" class="content-view hidden">
+                <div class="text-center text-gray-500 mt-20">Vulnerability Module - Under Construction</div>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- Modal: Add Target -->
+    <div id="addTargetModal" class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center hidden z-50">
+        <div class="bg-gray-800 rounded-xl border border-gray-700 p-6 w-96">
+            <h3 class="text-lg font-bold text-white mb-4">Start New Scan</h3>
+            <input type="text" id="newTargetInput" placeholder="example.com"
+                class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2 mb-4 focus:outline-none focus:border-green-500">
+
+            <div class="mb-6">
+                <label class="block text-gray-400 text-sm mb-2 font-bold uppercase tracking-wide">Scan
+                    Methodology</label>
+                <div class="space-y-2">
+                    <label
+                        class="flex items-center p-3 rounded-lg border border-gray-700 bg-gray-900 hover:border-blue-500 cursor-pointer transition-colors">
+                        <input type="radio" name="scanType" value="full"
+                            class="bg-gray-800 border-gray-600 text-blue-500 focus:ring-blue-500 h-4 w-4" checked>
+                        <div class="ml-3">
+                            <span class="block text-sm font-medium text-white">Full & Deep Scan</span>
+                            <span class="block text-xs text-gray-500">Subdomains + Hosting + Crawling + Vulns</span>
+                        </div>
+                    </label>
+                    <label
+                        class="flex items-center p-3 rounded-lg border border-gray-700 bg-gray-900 hover:border-yellow-500 cursor-pointer transition-colors">
+                        <input type="radio" name="scanType" value="quick"
+                            class="bg-gray-800 border-gray-600 text-yellow-500 focus:ring-yellow-500 h-4 w-4">
+                        <div class="ml-3">
+                            <span class="block text-sm font-medium text-white">Quick Scan (Fast)</span>
+                            <span class="block text-xs text-gray-500">Subdomains + Hosting + Vulns (No Crawl)</span>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-3">
+                <button onclick="document.getElementById('addTargetModal').classList.add('hidden')"
+                    class="px-4 py-2 text-gray-400 hover:text-white">Cancel</button>
+                <button onclick="startNewScan()"
+                    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold">Start
+                    Scan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Init Icons
+        lucide.createIcons();
+
+        // Constants
+        const views = ['dashboard', 'targets', 'live', 'inventory', 'fuzzing', 'vulns'];
+        const consoleOutput = document.getElementById('console-output');
+        const consoleAnchor = document.getElementById('console-anchor');
+        const statusDot = document.getElementById('ws-status-dot');
+        const statusText = document.getElementById('ws-status-text');
+
+        // State
+        let socket;
+
+        // Navigation Logic
+        function showTab(tabId) {
+            views.forEach(v => {
+                document.getElementById(`view-${v}`).classList.add('hidden');
+                const nav = document.getElementById(`nav-${v}`);
+                if (nav) {
+                    nav.classList.remove('bg-gray-700', 'text-white');
+                    nav.classList.add('text-gray-300');
+                }
+            });
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            const activeNav = document.getElementById(`nav-${tabId}`);
+            if (activeNav) {
+                activeNav.classList.add('bg-gray-700', 'text-white');
+                activeNav.classList.remove('text-gray-300');
+            }
+            document.getElementById('page-title').textContent = tabId.charAt(0).toUpperCase() + tabId.slice(1);
+
+            if (tabId === 'targets') fetchTargets();
+            if (tabId === 'inventory') {
+                if (currentDomain) {
+                    showInventoryDetail();
+                    fetchInventory(currentDomain);
+                } else {
+                    showInventoryGrid();
+                    fetchInventoryStats();
+                }
+            }
+        }
+
+        // Global Selection
+        let currentDomain = null;
+
+        function selectTarget(domain) {
+            currentDomain = domain;
+            showTab('inventory');
+        }
+
+        // Inventory Grid Logic
+        function showInventoryGrid() {
+            document.getElementById('inventory-grid').classList.remove('hidden');
+            document.getElementById('inventory-detail').classList.add('hidden');
+        }
+
+        function showInventoryDetail() {
+            document.getElementById('inventory-grid').classList.add('hidden');
+            document.getElementById('inventory-detail').classList.remove('hidden');
+        }
+
+        function closeInventoryDetail() {
+            currentDomain = null;
+            showInventoryGrid();
+            fetchInventoryStats();
+        }
+
+        async function fetchInventoryStats() {
+            const container = document.getElementById('inventory-grid-container');
+            container.innerHTML = '<div class="col-span-full text-center p-10"><i data-lucide="loader" class="animate-spin w-8 h-8 mx-auto text-blue-500"></i><p class="mt-2 text-gray-400">Loading Dashboard...</p></div>';
+            lucide.createIcons();
+
+            try {
+                const res = await fetch(`/api/inventory/stats`);
+                const stats = await res.json();
+
+                if (stats.length === 0) {
+                    container.innerHTML = '<div class="col-span-full text-center text-gray-500 p-10">No assets found. Start a scan first.</div>';
+                    return;
+                }
+
+                container.innerHTML = '';
+                stats.forEach(s => {
+                    const card = document.createElement('div');
+                    card.className = "bg-gray-800 rounded-xl p-6 border border-gray-700 hover:border-blue-500 cursor-pointer transition-colors group";
+                    card.onclick = () => selectTarget(s.domain);
+
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-4">
+                            <h4 class="text-xl font-bold text-white group-hover:text-blue-400">${s.domain}</h4>
+                            <div class="bg-gray-700 p-2 rounded-lg text-gray-300 group-hover:bg-blue-900 group-hover:text-blue-200">
+                                <i data-lucide="globe" class="w-6 h-6"></i>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="bg-gray-700/50 p-3 rounded-lg">
+                                <span class="block text-gray-400 text-xs uppercase font-bold tracking-wider">Subdomains</span>
+                                <span class="block text-2xl font-mono text-white mt-1">${s.subdomains}</span>
+                            </div>
+                            <div class="bg-gray-700/50 p-3 rounded-lg">
+                                <span class="block text-gray-400 text-xs uppercase font-bold tracking-wider">URLs Found</span>
+                                <span class="block text-2xl font-mono text-green-400 mt-1">${s.urls}</span>
+                            </div>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+                lucide.createIcons();
+
+            } catch (e) {
+                container.innerHTML = '<div class="col-span-full text-center text-red-500">Error loading dashboard stats.</div>';
+            }
+        }
+
+        // WebSocket Logic
+        function connectWS() {
+            const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            socket = new WebSocket(`${protocol}://${window.location.host}/ws`);
+
+            socket.onopen = function () {
+                statusDot.classList.remove('bg-red-500');
+                statusDot.classList.add('bg-green-500', 'animate-pulse');
+                statusText.innerText = "Combined Systems Online";
+            };
+
+            socket.onmessage = function (event) {
+                const data = JSON.parse(event.data);
+                if (data.type === 'log') {
+                    // Filter or Colorize
+                    let color = "text-gray-300";
+                    if (data.message.includes('[!]')) color = "text-red-400";
+                    if (data.message.includes('[+]')) color = "text-green-400";
+                    if (data.message.includes('[*]')) color = "text-blue-400";
+                    if (data.message.includes('[ALIVE]')) color = "text-green-500 font-bold";
+
+                    appendLog(data.message, color);
+                } else if (data.type === 'subdomain') {
+                    // Optional: Update stats in real-time?
+                } else if (data.type === 'crawl') {
+                    appendLog(`[CRAWL] Found ${data.url} [${data.tags.join(', ')}]`, "text-purple-400");
+                } else if (data.type === 'status') {
+                    appendLog(`[STATUS] ${data.message}`, "text-yellow-400 font-bold");
+                } else if (data.type === 'ffuf_result') {
+                    // Update FFUF specific output box
+                    const outDiv = document.getElementById('ffuf-output');
+                    if (outDiv) {
+                        const div = document.createElement('div');
+                        div.className = "text-green-400 font-mono text-xs border-b border-gray-800 py-1";
+                        div.innerText = data.message;
+                        outDiv.appendChild(div);
+                        outDiv.scrollTop = outDiv.scrollHeight; // Auto-scroll
+                    }
+                }
+            };
+
+            socket.onclose = function () {
+                statusDot.classList.remove('bg-green-500', 'animate-pulse');
+                statusDot.classList.add('bg-red-500');
+                statusText.innerText = "System Offline";
+                setTimeout(connectWS, 3000);
+            };
+        }
+
+
+        let currentViewMode = 'assets'; // assets or vulns
+        let currentDetailDomain = null;
+
+        function toggleDetailView(mode) {
+            currentViewMode = mode;
+            // Update buttons
+            document.getElementById('btn-view-assets').className = mode === 'assets' ? "px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold" : "px-4 py-2 bg-gray-700 text-gray-300 rounded-lg text-sm font-bold hover:bg-gray-600";
+            document.getElementById('btn-view-vulns').className = mode === 'vulns' ? "px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold" : "px-4 py-2 bg-gray-700 text-gray-300 rounded-lg text-sm font-bold hover:bg-gray-600";
+
+            if (currentDetailDomain) {
+                if (mode === 'assets') fetchInventory(currentDetailDomain);
+                else fetchVulns(currentDetailDomain);
+            }
+        }
+
+        async function fetchVulns(domain) {
+            currentDetailDomain = domain;
+            const tbody = document.getElementById('inventory-table-body');
+            tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center"><i data-lucide="loader" class="animate-spin w-5 h-5 mx-auto"></i></td></tr>';
+
+            // Temporary: update header columns
+            // Ideally we should have separate tables, but for speed we reuse
+            // We need to inject header row if it's dynamic, but current HTML has static headers (Tool, URL, Tags).
+            // Let's replace the Header Row too.
+            const thead = document.querySelector('#inventory-detail table thead tr');
+            thead.innerHTML = '<th class="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Severity</th><th class="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Name</th><th class="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">URL</th>';
+
+            try {
+                const res = await fetch(`/api/vulns/${domain}`);
+                const data = await res.json();
+
+                if (data.vulnerabilities.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-500">No vulnerabilities found (yet).</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                data.vulnerabilities.forEach(v => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-gray-800 border-b border-gray-700/50";
+
+                    let sevColor = "text-gray-400";
+                    if (v.severity === 'low') sevColor = "text-blue-400";
+                    if (v.severity === 'medium') sevColor = "text-yellow-400";
+                    if (v.severity === 'high') sevColor = "text-orange-500 font-bold";
+                    if (v.severity === 'critical') sevColor = "text-red-500 font-bold uppercase";
+
+                    tr.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm ${sevColor}">${v.severity.toUpperCase()}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-200">
+                            <div class="font-bold">${v.name}</div>
+                            <div class="text-xs text-gray-500">${v.matcher || ''}</div>
+                        </td>
+                        <td class="px-6 py-4 text-sm text-gray-400 truncate max-w-xs" title="${v.url}">${v.url}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                lucide.createIcons();
+            } catch (e) {
+                console.error(e);
+                tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-red-500">Error loading vulnerabilities.</td></tr>';
+            }
+        }
+
+        async function fetchInventory(domain) {
+            currentDetailDomain = domain;
+            document.getElementById('inventory-detail-title').innerText = `Assets: ${domain}`;
+            const tbody = document.getElementById('inventory-table-body');
+
+            // Restore Assets Header
+            const thead = document.querySelector('#inventory-detail table thead tr');
+            thead.innerHTML = '<th class="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Tool</th><th class="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">URL</th><th class="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Tags</th>';
+
+            tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center"><i data-lucide="loader" class="animate-spin w-5 h-5 mx-auto"></i></td></tr>';
+            lucide.createIcons();
+
+            try {
+                const res = await fetch(`/api/inventory/${domain}`);
+                const data = await res.json();
+
+                if (data.urls.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-500">No assets found.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                data.urls.forEach(u => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-gray-800";
+
+                    let tagsHtml = '';
+                    u.tags.forEach(tag => {
+                        let color = "bg-gray-700 text-gray-300";
+                        if (['xss', 'sqli', 'lfi'].includes(tag)) color = "bg-red-900 text-red-200 border border-red-700";
+                        if (['secrets', 'config'].includes(tag)) color = "bg-yellow-900 text-yellow-200 border border-yellow-700";
+
+                        tagsHtml += `<span class="px-2 py-0.5 rounded text-xs mr-1 ${color}">${tag.toUpperCase()}</span>`;
+                    });
+
+                    tr.innerHTML = `
+                        <td class="p-3 text-gray-400 text-xs uppercase">${u.tool}</td>
+                        <td class="p-3 text-blue-400 break-all hover:underline cursor-pointer" onclick="window.open('${u.url}', '_blank')">${u.url}</td>
+                        <td class="p-3">${tagsHtml}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-red-500">Error loading data.</td></tr>';
+            }
+        }
+
+        function appendLog(msg, classes = "text-gray-300") {
+            const div = document.createElement('div');
+            // Timestamp
+            const time = new Date().toLocaleTimeString();
+            div.innerHTML = `<span class="text-gray-600 mr-2">[${time}]</span><span class="${classes}">${msg}</span>`;
+            consoleOutput.appendChild(div);
+            // Auto scroll only if we are in Live view or if user wants it? 
+            // Better to always scroll container if we are near bottom
+            // Simple approach: scroll into view
+            consoleAnchor.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // API Logic
+        async function fetchTargets() {
+            try {
+                const res = await fetch('/targets');
+                const data = await res.json();
+                const tbody = document.getElementById('targets-table-body');
+                tbody.innerHTML = '';
+
+                // Update stats
+                document.getElementById('stat-targets').innerText = data.count;
+
+                data.targets.forEach(t => {
+                    const tr = document.createElement('tr');
+                    tr.className = "border-b border-gray-700 hover:bg-gray-750";
+                    tr.innerHTML = `
+                        <td class="py-3 text-white font-medium">${t}</td>
+                        <td class="py-3 text-gray-400">Just now</td>
+                        <td class="py-3">
+                            <button onclick="startScan('${t}')" class="text-green-400 hover:text-green-300 text-xs uppercase font-bold tracking-wide mr-3">Scan Again</button>
+                            <button onclick="selectTarget('${t}')" class="text-blue-400 hover:text-blue-300 text-xs uppercase font-bold tracking-wide mr-3">View Assets</button>
+                            <button onclick="deleteTarget('${t}')" class="text-red-400 hover:text-red-300 text-xs uppercase font-bold tracking-wide"><i data-lucide="trash-2" class="w-4 h-4 inline"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                lucide.createIcons(); // Refresh icons
+            } catch (e) {
+                console.error("Failed to fetch targets", e);
+            }
+        }
+
+        async function deleteTarget(domain) {
+            // Show confirmation with more visible styling
+            const confirmed = confirm(`⚠️ DELETE TARGET: ${domain}\n\nThis will permanently delete:\n• All subdomains\n• All discovered URLs\n• All vulnerabilities\n\nAre you sure?`);
+
+            if (!confirmed) return;
+
+            try {
+                // Find the button and show loading state
+                const buttons = document.querySelectorAll('button.text-red-400');
+                const targetRow = Array.from(document.querySelectorAll('tr')).find(row => row.textContent.includes(domain));
+                const deleteBtn = targetRow?.querySelector('button.text-red-400');
+
+                if (deleteBtn) {
+                    deleteBtn.disabled = true;
+                    deleteBtn.innerHTML = '<i data-lucide="loader" class="w-4 h-4 inline animate-spin"></i>';
+                    lucide.createIcons();
+                }
+
+                const response = await fetch(`/api/target/${domain}`, { method: 'DELETE' });
+
+                if (response.ok) {
+                    // Success feedback
+                    if (deleteBtn) {
+                        deleteBtn.innerHTML = '<i data-lucide="check" class="w-4 h-4 inline text-green-500"></i>';
+                        lucide.createIcons();
+                    }
+
+                    // Wait a moment to show success icon
+                    await new Promise(resolve => setTimeout(resolve, 500));
+
+                    // Refresh list
+                    fetchTargets();
+                    if (currentDomain === domain) currentDomain = null;
+                } else {
+                    throw new Error(`Server returned ${response.status}`);
+                }
+            } catch (e) {
+                console.error('Delete error:', e);
+                alert(`❌ Failed to delete target: ${e.message}\n\nPlease try again or check the console for details.`);
+                fetchTargets(); // Refresh to restore button state
+            }
+        }
+
+        async function startNewScan() {
+            const domain = document.getElementById('newTargetInput').value;
+            const scanType = document.querySelector('input[name="scanType"]:checked')?.value || 'full';
+            if (!domain) return;
+            document.getElementById('addTargetModal').classList.add('hidden');
+            document.getElementById('newTargetInput').value = '';
+
+            startScan(domain, scanType);
+        }
+
+        async function startScan(domain, scanType = 'full') {
+            currentDomain = domain;
+            // Switch to Live view
+            showTab('live');
+            appendLog(`System: Initiating ${scanType.toUpperCase()} scan for ${domain}...`, "text-white");
+
+            try {
+                const res = await fetch(`/scan/${domain}?scan_type=${scanType}`, { method: 'POST' });
+                const data = await res.json();
+                if (data.scan_id) {
+                    currentScanId = data.scan_id;
+                    document.getElementById('btn-stop-scan').classList.remove('hidden');
+                    appendLog(`System: Scan Started (ID: ${currentScanId})`, "text-green-500");
+                }
+            } catch (e) {
+                appendLog(`System: Error starting scan: ${e}`, "text-red-500");
+            }
+        }
+
+        async function stopScan() {
+            if (!currentScanId) return;
+            if (!confirm("Are you sure you want to stop the current scan?")) return;
+
+            try {
+                await fetch(`/cancel-scan/${currentScanId}`, { method: 'POST' });
+                // We wait for WS message to confirm abort usually, but we can log user action
+                appendLog(`System: Cancellation requested...`, "text-yellow-500");
+                document.getElementById('btn-stop-scan').classList.add('hidden');
+                currentScanId = null;
+            } catch (e) {
+                appendLog(`System: Error cancelling scan: ${e}`, "text-red-500");
+            }
+        }
+
+        async function fetchWordlists() {
+            try {
+                const res = await fetch('/api/wordlists');
+                const data = await res.json();
+                const select = document.getElementById('ffuf-wordlist-select');
+
+                if (data.wordlists && data.wordlists.length > 0) {
+                    select.innerHTML = '<option value="">-- Choose a Wordlist --</option>';
+                    data.wordlists.forEach(w => {
+                        const opt = document.createElement('option');
+                        opt.value = w;
+                        opt.textContent = w;
+                        select.appendChild(opt);
+                    });
+                } else {
+                    select.innerHTML = '<option value="">No wordlists found</option>';
+                }
+            } catch (e) {
+                console.error("Error fetching wordlists:", e);
+            }
+        }
+
+        function toggleCustomWordlist() {
+            const profile = document.getElementById('ffuf-preset-select').value;
+            const customDiv = document.getElementById('ffuf-custom-wordlist');
+            if (profile === 'custom') {
+                customDiv.classList.remove('hidden');
+                if (document.getElementById('ffuf-wordlist-select').options.length <= 1) {
+                    fetchWordlists();
+                }
+            } else {
+                customDiv.classList.add('hidden');
+            }
+        }
+
+        async function startFuzzing() {
+            const target = document.getElementById('ffuf-target-input').value;
+            const preset = document.getElementById('ffuf-preset-select').value;
+            const outputDiv = document.getElementById('ffuf-output');
+            let wordlist = "";
+
+            if (!target) {
+                alert("Please enter a target URL.");
+                return;
+            }
+
+            if (preset === 'custom') {
+                wordlist = document.getElementById('ffuf-wordlist-select').value;
+                if (!wordlist) {
+                    alert("Please select a wordlist for Custom profile.");
+                    return;
+                }
+            }
+
+            outputDiv.innerHTML = `<div class="text-yellow-400">Initializing FFUF scan on ${target}...</div>`;
+
+            try {
+                let url = `/scan/fuzz?target_url=${encodeURIComponent(target)}&preset=${preset}`;
+                if (preset === 'custom') {
+                    url += `&custom_wordlist=${encodeURIComponent(wordlist)}`;
+                }
+
+                const res = await fetch(url, { method: 'POST' });
+                const data = await res.json();
+
+                if (data.scan_id) {
+                    outputDiv.innerHTML += `<div class="text-green-400">Scan Started! ID: ${data.scan_id}</div>`;
+                    appendLog(`FFUF: Started ${preset} scan on ${target}`, "text-yellow-400");
+                }
+            } catch (e) {
+                outputDiv.innerHTML += `<div class="text-red-500">Error: ${e}</div>`;
+            }
+        }
+
+        // Init
+        connectWS();
+        showTab('dashboard'); // Default tab
+
+        // Initial Data Load
+        fetchTargets();
+
+    </script>
+</body>
+
+</html>
