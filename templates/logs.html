@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Terminal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Fira Code', monospace;
+            background-color: #0d1117;
+            color: #c9d1d9;
+        }
+
+        .scrollbar-hide::-webkit-scrollbar {
+            display: none;
+        }
+
+        .scrollbar-hide {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <!-- Header -->
+    <header class="bg-gray-900 border-b border-gray-800 p-4 flex justify-between items-center shrink-0">
+        <div class="flex items-center gap-3">
+            <div class="w-3 h-3 rounded-full bg-red-500"></div>
+            <div class="w-3 h-3 rounded-full bg-yellow-500"></div>
+            <div class="w-3 h-3 rounded-full bg-green-500"></div>
+            <h1 class="ml-4 text-green-400 font-bold text-lg tracking-wider">ROOT@RECON:~/SYSTEM_LOGS</h1>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2">
+                <span id="status-dot" class="w-2 h-2 rounded-full bg-red-500"></span>
+                <span id="status-text" class="text-xs text-gray-500 uppercase tracking-widest">OFFLINE</span>
+            </div>
+            <button onclick="clearLogs()"
+                class="text-xs text-gray-400 hover:text-white border border-gray-700 px-3 py-1 rounded hover:bg-gray-800 transition">CLEAR</button>
+            <a href="/"
+                class="text-xs text-blue-400 hover:text-blue-300 border border-blue-900 px-3 py-1 rounded hover:bg-blue-900/30 transition">BACK
+                TO DASHBOARD</a>
+        </div>
+    </header>
+
+    <!-- Terminal Output -->
+    <main id="terminal-container"
+        class="flex-1 overflow-y-auto p-4 space-y-1 font-mono text-sm leading-relaxed scroll-smooth bg-[#0d1117]">
+        <!-- Logs will be injected here -->
+        <div class="text-gray-600">Waiting for system stream...</div>
+    </main>
+
+    <!-- Auto-scroll Anchor -->
+    <div id="anchor"></div>
+
+    <script>
+        const terminal = document.getElementById('terminal-container');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        let socket;
+        let autoScroll = true;
+
+        // Auto-scroll logic
+        terminal.addEventListener('scroll', () => {
+            const isAtBottom = terminal.scrollHeight - terminal.scrollTop <= terminal.clientHeight + 50;
+            autoScroll = isAtBottom;
+        });
+
+        function connectWS() {
+            const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+            socket = new WebSocket(`${protocol}://${window.location.host}/ws`);
+
+            socket.onopen = () => {
+                statusDot.classList.replace('bg-red-500', 'bg-green-500');
+                statusDot.classList.add('animate-pulse');
+                statusText.innerText = "CONNECTED";
+                statusText.classList.replace('text-gray-500', 'text-green-500');
+                appendLog("System Connection Established...", "text-green-500");
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                // Handle various message types, but prioritize 'terminal' and 'log'
+                if (data.type === 'terminal') {
+                    // Raw string from stdout/stderr
+                    appendRaw(data.data, data.stream);
+                } else if (data.type === 'log') {
+                    // Application log message
+                    appendLog(data.message, "text-blue-300");
+                } else if (data.type === 'status') {
+                    // Status update
+                    appendLog(`[STATUS] ${data.message}`, "text-yellow-400");
+                }
+            };
+
+            socket.onclose = () => {
+                statusDot.classList.replace('bg-green-500', 'bg-red-500');
+                statusDot.classList.remove('animate-pulse');
+                statusText.innerText = "DISCONNECTED";
+                statusText.classList.replace('text-green-500', 'text-gray-500');
+                appendLog("Connection Lost. Reconnecting...", "text-red-500");
+                setTimeout(connectWS, 2000);
+            };
+        }
+
+        function appendRaw(text, stream) {
+            // Split by newlines to handle chunks properly
+            const lines = text.split('\n');
+            lines.forEach(line => {
+                if (!line) return;
+                const div = document.createElement('div');
+                div.className = stream === 'stderr' ? 'text-red-400' : 'text-gray-300 hover:bg-gray-800/50';
+                div.textContent = line; // Use textContent for safety/raw view
+                terminal.appendChild(div);
+            });
+            scrollToBottom();
+        }
+
+        function appendLog(msg, colorClass = "text-gray-300") {
+            const div = document.createElement('div');
+            const time = new Date().toLocaleTimeString();
+            div.className = `${colorClass} hover:bg-gray-800/50 flex gap-4`;
+            div.innerHTML = `<span class="text-gray-600 select-none">[${time}]</span> <span>${msg}</span>`;
+            terminal.appendChild(div);
+            scrollToBottom();
+        }
+
+        function scrollToBottom() {
+            if (autoScroll) {
+                terminal.scrollTop = terminal.scrollHeight;
+            }
+        }
+
+        function clearLogs() {
+            terminal.innerHTML = '<div class="text-gray-600">Logs cleared.</div>';
+        }
+
+        // Init
+        connectWS();
+    </script>
+</body>
+
+</html>

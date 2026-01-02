@@ -97,6 +97,8 @@ async def run_ffuf(target_url, preset_name="standard", broadcast_callback=None, 
     console.print(f"[bold yellow][*] Running FFUF (Preset: {preset_name}) on {target_url}...[/bold yellow]")
     if broadcast_callback:
         await broadcast_callback({"type": "status", "message": f"Starting FFUF ({preset_name}) on {target_url}"})
+        # Broadcast the raw command for UI display
+        await broadcast_callback({"type": "ffuf_command", "command": cmd_str})
         await broadcast_callback({"type": "log", "message": f"Executing: {cmd_str}"})
 
     try:

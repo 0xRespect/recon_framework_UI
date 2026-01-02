@@ -1,4 +1,5 @@
 import asyncio
+from typing import List
 import os
 import json
 import tempfile
@@ -51,16 +52,17 @@ async def run_nuclei(urls, domain, config, broadcast_callback=None, scan_id=None
         # OR letting nuclei write to a JSON file and reading it.
         # Reading stdout line-by-line as JSON is good for streaming.
         
-        # Default flags
-        concurrency = config.get('nuclei', {}).get('concurrency', 30)
-        bulk_size = config.get('nuclei', {}).get('bulk_size', 50)
+        # High Performance Flags (Optimized for i5-12400F / 16GB RAM)
+        concurrency = config.get('nuclei', {}).get('concurrency', 25) # Good match for 12 threads
+        bulk_size = config.get('nuclei', {}).get('bulk_size', 20)     # Parallel hosts
+        rate_limit = config.get('nuclei', {}).get('rate_limit', 300)  # SSD can handle this easily
         
         # We assume 'nuclei' is in PATH (installed via go install)
         # We explicitly omit -t to use default templates or user should configure ~/.nuclei-config.json
         # Or we can specify common tags like cves, exposures.
         # nuclei -tags cves,exposures,misconfiguration
         
-        cmd = f"nuclei -l {temp_path} -jsonl -silent -bs {bulk_size} -c {concurrency}"
+        cmd = f"nuclei -l {temp_path} -jsonl -silent -bs {bulk_size} -c {concurrency} -rate-limit {rate_limit}"
         
         process = await asyncio.create_subprocess_shell(
             cmd,
@@ -75,11 +77,25 @@ async def run_nuclei(urls, domain, config, broadcast_callback=None, scan_id=None
         count = 0
         while True:
             line = await process.stdout.readline()
-            if not line:
+            line_err = await process.stderr.readline()
+            
+            if not line and not line_err:
                 break
                 
+            if line_err:
+                decoded_err = line_err.decode('utf-8', errors='replace').strip()
+                if decoded_err and broadcast_callback:
+                     await broadcast_callback({"type": "raw", "message": decoded_err})
+
+            if not line:
+                continue
+
             decoded = line.decode('utf-8').strip()
             if decoded:
+                # RAW LOG: Stream everything to the raw console
+                if broadcast_callback:
+                    await broadcast_callback({"type": "raw", "message": decoded})
+
                 try:
                     vuln_data = json.loads(decoded)
                     # Example Nuclei JSON: 
@@ -246,8 +262,23 @@ async def run_sqli_scan(urls, domain, config, broadcast_callback=None, scan_id=N
             
             while True:
                 line = await process_sqlmap.stdout.readline()
-                if not line: break
+                line_err = await process_sqlmap.stderr.readline()
+                
+                if not line and not line_err: break
+                
+                if line_err:
+                     l_err = line_err.decode(errors='replace').strip()
+                     if broadcast_callback and l_err:
+                         await broadcast_callback({"type": "raw", "message": l_err})
+
+                if not line: continue
+                
                 l = line.decode(errors='replace').strip()
+                
+                # RAW LOG
+                if broadcast_callback and l:
+                    await broadcast_callback({"type": "raw", "message": l})
+
                 # Broadcast interesting lines only?
                 if "parameter" in l and "appears to be" in l:
                      await broadcast_callback({"type": "log", "message": f"[SQLMap] {l}"})
@@ -303,14 +334,18 @@ async def run_xss_scan(urls, domain, config, broadcast_callback=None, scan_id=No
         # Alternative: We already have 'tags' from Python logic.
         # So we can trust the input 'urls' are already XSS candidates if 'smart' mode was used.
         # But let's run Gxss to be sure about reflection.
+        # We need to construct a list of URLs for Gxss
+        # Gxss -p Rxss (Reflected XSS mode)
+        # -c 50: Concurrency
+        # -v: Verbose (useful for debug logic, but maybe noisy here)
         
         gxss_output = targets_path + ".gxss"
-        
-        # cmd: cat targets | Gxss -p Rxss -o gxss_output
-        cmd_gxss = f"cat {targets_path} | Gxss -p Rxss -o {gxss_output}"
+        # Adding timeout command to prevent hanging forever
+        # -c 100 for speed
+        cmd_gxss = f"cat {targets_path} | timeout 300 Gxss -c 100 -p Rxss -o {gxss_output}"
         
         if broadcast_callback:
-             await broadcast_callback({"type": "log", "message": "[XSS] Checking param reflection with Gxss..."})
+            await broadcast_callback({"type": "status", "message": "Checking param reflection with Gxss..."})
              
         process_gxss = await asyncio.create_subprocess_shell(
             cmd_gxss,
@@ -347,13 +382,31 @@ async def run_xss_scan(urls, domain, config, broadcast_callback=None, scan_id=No
             for u in reflected_urls:
                 f.write(u + "\n")
                 
+        # Helper to stream output
+        async def stream_output(proc):
+            # Read stdout and stderr concurrently
+            async def read_stream(stream, prefix=""):
+                if not stream: return
+                while True:
+                     line = await stream.readline()
+                     if not line: break
+                     decoded = line.decode('utf-8', errors='replace').rstrip()
+                     if decoded:
+                         print(f"{prefix}{decoded}") # This goes to sys.stdout -> WebSocket
+
+            await asyncio.gather(
+                read_stream(proc.stdout, ""),
+                read_stream(proc.stderr, "")
+            )
+
         # Output to JSON for parsing
         dalfox_out = "/tmp/dalfox_result.json" 
-        # dalfox file target_file --format json -o output.json
-        cmd_dalfox = f"dalfox file {reflected_path} --format json -o {dalfox_out} --silence --skip-bav --worker 10"
+        # Added timeout 1800 (30 minutes)
+        # REMOVED --silence to show banner/progress
+        cmd_dalfox = f"timeout 1800 dalfox file {reflected_path} --format json -o {dalfox_out} --skip-bav --worker 10"
         
         if broadcast_callback:
-             await broadcast_callback({"type": "status", "message": "Running Dalfox..."})
+             await broadcast_callback({"type": "status", "message": "Running Dalfox (Timeout: 30m)..."})
              
         process_dalfox = await asyncio.create_subprocess_shell(
             cmd_dalfox,
@@ -361,10 +414,16 @@ async def run_xss_scan(urls, domain, config, broadcast_callback=None, scan_id=No
             stderr=asyncio.subprocess.PIPE
         )
         
-        # Dalfox output is in file, but standard output might show progress?
-        # Dalfox --silence hides progress.
+        # Stream the output LIVE
+        await stream_output(process_dalfox)
         await process_dalfox.wait()
         
+        # Check return code for timeout
+        # 124 is the standard exit code for 'timeout' command
+        if process_dalfox.returncode == 124:
+             if broadcast_callback:
+                await broadcast_callback({"type": "log", "message": "[!] XSS Scan TIMED OUT (30m Limit Reached). Results may be partial."})
+
         # Parse Dalfox JSON
         if os.path.exists(dalfox_out):
             try:
@@ -378,11 +437,20 @@ async def run_xss_scan(urls, domain, config, broadcast_callback=None, scan_id=No
                         
                         count = 0
                         for v in vulns:
+                            # DEBUG: Print raw object to see keys
+                            # print(f"[DEBUG] Dalfox Raw JSON: {v}") 
+                            
                             # v keys: type, severity, method, param, payload, evidence, url
                             name = f"XSS ({v.get('type')})"
                             severity = v.get('severity', 'high').lower()
                             # Dalfox keys might vary: url, target, request_url
-                            url = v.get('url') or v.get('target') or v.get('request_url') or "N/A"
+                            url = v.get('url') or v.get('target') or v.get('request_url')
+                            
+                            if not url or v.get('type') is None:
+                                # Skip empty/metadata packets
+                                continue
+
+                            url = url or "N/A"
                             desc = f"Payload: {v.get('payload')}"
                             
                             console.print(f"[bold red][VULN] {name} at {url}[/bold red]")
@@ -400,24 +468,185 @@ async def run_xss_scan(urls, domain, config, broadcast_callback=None, scan_id=No
 
                         if broadcast_callback:
                             await broadcast_callback({"type": "log", "message": f"[XSS] Dalfox finished. Found {count} vulnerabilities."})
+                    else:
+                        if broadcast_callback:
+                            await broadcast_callback({"type": "log", "message": "[XSS] Dalfox produced empty output."})
                             
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
+                # Common if file is truncated due to timeout
+                error_msg = f"[XSS] Output parsing failed (likely timeout truncation): {e}"
+                console.print(f"[red]{error_msg}[/red]")
                 if broadcast_callback:
-                     await broadcast_callback({"type": "log", "message": "[XSS] Error parsing Dalfox output."})
-            finally:
-                os.remove(dalfox_out)
-        else:
-             if broadcast_callback:
-                 await broadcast_callback({"type": "log", "message": "[XSS] Dalfox produced no output file."})
-
-        os.remove(reflected_path)
+                     await broadcast_callback({"type": "log", "message": error_msg})
+            except Exception as e:
+                if broadcast_callback:
+                    await broadcast_callback({"type": "log", "message": f"[XSS] Error parsing Dalfox output: {e}"})
 
     except Exception as e:
-        console.print(f"[!] XSS Pipeline Error: {e}")
+        console.print(f"[red]Error in XSS Pipeline: {e}[/red]")
         if broadcast_callback:
-            await broadcast_callback({"type": "log", "message": f"Error: {e}"})
+            await broadcast_callback({"type": "log", "message": f"[XSS] Pipeline Error: {e}"})
+            
     finally:
-        if os.path.exists(targets_path): os.remove(targets_path)
+        # Cleanup
+        if 'targets_path' in locals() and os.path.exists(targets_path): os.remove(targets_path)
+        if 'gxss_output' in locals() and os.path.exists(gxss_output): os.remove(gxss_output)
+        if 'reflected_path' in locals() and os.path.exists(reflected_path): os.remove(reflected_path)
+
+async def run_open_redirect_scan(urls: List[str], domain: str, config: dict, broadcast_callback=None, scan_id=None):
+    """
+    Scans for Open Redirect vulnerabilities using `qsreplace` and `httpx`.
+    Logic:
+    1. Filter URLs for redirect parameters (grep + regex).
+    2. Replace parameter values with 'https://evil.com' (using qsreplace).
+    3. Check if response redirects to evil.com (httpx -status-code -location -er 'evil.com').
+    """
+    if not urls:
+        if broadcast_callback:
+            await broadcast_callback({"type": "log", "message": "[OR] No URLs to scan."})
+        return
+
+    work_dir = os.path.join("scans", f"{domain}_{scan_id}")
+    os.makedirs(work_dir, exist_ok=True)
+    
+    urls_file = os.path.join(work_dir, "or_urls.txt")
+    redirect_urls_file = os.path.join(work_dir, "redirect_params.txt")
+    payload_file = os.path.abspath("loxs/payloads/or.txt")
+    final_output = os.path.join(work_dir, "or_results.txt")
+    
+    # Save Initial URLs
+    with open(urls_file, "w") as f:
+        for u in urls:
+            f.write(f"{u}\n")
+            
+    if broadcast_callback:
+        await broadcast_callback({"type": "log", "message": f"[OR] Filtering {len(urls)} URLs for redirect parameters..."})
+        
+        # DEBUG: Print first 5 URLs to see what we are working with
+        debug_msg = " | ".join(urls[:5])
+        await broadcast_callback({"type": "log", "message": f"[DEBUG] Input URLs: {debug_msg}"})
+
+    # Step 1: Filter URLs for potential redirect parameters
+    # Using the regex from the user request, ensuring 'url=' is explicitly included given the failure
+    regex = "url=|returnUrl=|continue=|dest=|destination=|forward=|go=|goto=|login\?to=|login_url=|logout=|next=|next_page=|out=|g=|redir=|redirect=|redirect_to=|redirect_uri=|redirect_url=|return=|returnTo=|return_path=|return_to=|return_url=|rurl=|site=|target=|to=|uri=|qurl=|rit_url=|jump=|jump_url=|originUrl=|origin=|Url=|desturl=|u=|Redirect=|location=|ReturnUrl=|forward_to=|forward_url=|destination_url=|jump_to=|go_to=|goto_url=|target_url=|redirect_link="
+    
+    # We use grep via shell pipeline since it's efficient for this specific regex
+    # command: cat urls | grep -Pi "regex" > output
+    cmd_filter = f"cat {urls_file} | grep -Pi \"{regex}\" > {redirect_urls_file}"
+    
+    proc = await asyncio.create_subprocess_shell(cmd_filter, shell=True)
+    await proc.wait()
+    
+    # Check if we found anything
+    if not os.path.exists(redirect_urls_file) or os.path.getsize(redirect_urls_file) == 0:
+        if broadcast_callback:
+            await broadcast_callback({"type": "log", "message": "[OR] No parameters found via properties. Switching to Discovery Mode..."})
+        
+        # FALLBACK: If we only have domains (e.g. https://mock_target:5000), we must GUESS parameters.
+        # We will take the original input URLs and append common redirect parameters.
+        discovery_params = ["url", "redirect", "next", "target", "dest", "destination", "returnUrl", "to", "u", "r"]
+        fuzzed_urls = []
+        for u in urls:
+             # Ensure we don't double slash
+             base = u.rstrip('/')
+             for p in discovery_params:
+                 # Construct: http://target.com/?url=http://google.com
+                 fuzzed_urls.append(f"{base}/?{p}=http://google.com")
+        
+        # Write these fuzzed URLs to the file 'targets_path' to be used by the checking routine
+        # We overwrite redirect_urls_file so the next step uses them
+        with open(redirect_urls_file, 'w') as f:
+            for fu in fuzzed_urls:
+                f.write(fu + "\n")
+        
+        if broadcast_callback:
+             await broadcast_callback({"type": "log", "message": f"[OR] Generated {len(fuzzed_urls)} potential endpoints for fuzzing."})
+
+    # Count filtered URLs
+    count_filtered = 0
+    with open(redirect_urls_file, 'r') as f:
+        lines = f.readlines()
+        count_filtered = len(lines)
+        
+    if broadcast_callback:
+        await broadcast_callback({"type": "log", "message": f"[OR] Scanning {count_filtered} URLs..."})
+        
+    # Step 2: Fuzzing loop
+    # We will loop through a few common payloads if the file exists, 
+    # or just use a standard 'http://evil.com' check as a base baseline.
+    # The user request mentioned: cat params | qsreplace "evil.com" | httpx ...
+    
+    # Helper to check for redirects
+    async def check_payload(payload):
+        # We assume local 'evil.com' check here for safety, or use example.com.
+        # Ideally, we look for the payload in the location header.
+        
+        # NOTE: Using 'google.com' as destination verification as per user request snippet
+        # "httpx ... -mr google.com"
+        
+        target_payload = "http://google.com" 
+        
+        # Pipeline: cat URLs | qsreplace payload | httpx -silent -fr -mr "google.com" -mc 301,302
+        # We need to construct this.
+        
+        # We use 'qsreplace' to inject the payload into all parameter values
+        cmd_fuzz = f"cat {redirect_urls_file} | qsreplace \"{target_payload}\" | httpx -silent -fr -mr \"google.com\" -mc 301,302 -status-code -location -no-color"
+        
+        if broadcast_callback:
+             await broadcast_callback({"type": "raw", "message": f"Running: {cmd_fuzz}"})
+        
+        # Helper to stream output
+        async def stream_output(proc):
+            async def read_stream(stream, prefix=""):
+                if not stream: return
+                while True:
+                     line = await stream.readline()
+                     if not line: break
+                     decoded = line.decode('utf-8', errors='replace').rstrip()
+                     if decoded:
+                         print(f"{prefix}{decoded}") # Intercepted by FastAPI to WS
+                         
+                         # Check for logic matches inside the stream
+                         if "[VULN]" in decoded or "Open Redirect found" in decoded or "301" in decoded or "302" in decoded:
+                             # We process it
+                             parts = decoded.split()
+                             url_found = parts[0]
+                             await async_add_vulnerability(domain, "Open Redirect", "medium", url_found, "custom-or-scan", f"Redirects to {target_payload}")
+                             
+            await asyncio.gather(
+                read_stream(proc.stdout, ""),
+                read_stream(proc.stderr, "")
+            )
+
+        process = await asyncio.create_subprocess_shell(
+            cmd_fuzz,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        # Stream it
+        await stream_output(process)
+        await process.wait()
+                # No more processing here, logic moved to stream_output helper
+                pass
+                
+        # End of scan
+        if broadcast_callback:
+            await broadcast_callback({"type": "log", "message": "[OR] Open Redirect Scan Complete."})
+        pass
+                    
+        await process.wait()
+
+    # Run check
+    await check_payload("http://google.com")
+    
+    # If explicit payload file exists, we could iterate it, but for 'smart' scan we stick to basic injection
+    # For a 'Full' scan we would use the payload file logic.
+    
+    if broadcast_callback:
+        await broadcast_callback({"type": "log", "message": "[OR] Scan complete."})
+
+
 
 async def run_lfi_scan(urls, domain, config, broadcast_callback=None, scan_id=None):
     if broadcast_callback:

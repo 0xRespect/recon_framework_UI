@@ -45,6 +45,42 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+# --- Stdout Interceptor ---
+class StreamToWebSocket:
+    def __init__(self, original_stream, stream_type="stdout"):
+        self.original_stream = original_stream
+        self.stream_type = stream_type
+
+    def write(self, buf):
+        # Write to original
+        if self.original_stream:
+            self.original_stream.write(buf)
+            self.original_stream.flush()
+        
+        # Broadcast if loop is running
+        # We need to run async in this sync method
+        if buf.strip():
+            try:
+                loop = asyncio.get_running_loop()
+                if loop.is_running():
+                    loop.create_task(manager.broadcast({
+                        "type": "terminal", 
+                        "stream": self.stream_type,
+                        "data": buf
+                    }))
+            except:
+                pass
+
+    def flush(self):
+        if self.original_stream:
+            self.original_stream.flush()
+
+# Redirect Streams
+# note: we do this carefully to avoid loops
+if not isinstance(sys.stdout, StreamToWebSocket):
+    sys.stdout = StreamToWebSocket(sys.stdout, "stdout")
+    sys.stderr = StreamToWebSocket(sys.stderr, "stderr")
+
 # --- Config & Helpers ---
 def load_config(config_path='config.yaml'):
     try:
@@ -99,6 +135,10 @@ async def on_startup():
 async def get_dashboard(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
+@app.get("/log", response_class=HTMLResponse)
+async def get_logs_page(request: Request):
+    return templates.TemplateResponse("logs.html", {"request": request})
+
 @app.post("/scan/fuzz")
 async def start_fuzzing(target_url: str, preset: str, background_tasks: BackgroundTasks, custom_wordlist: str = None):
     scan_id = str(uuid.uuid4())
@@ -130,7 +170,7 @@ async def cancel_scan(scan_id: str):
         return JSONResponse(status_code=404, content={"message": "Scan ID not found or already finished"})
 
 from pydantic import BaseModel
-from modules.vuln_scanning import run_nuclei, run_sqli_scan, run_xss_scan, run_lfi_scan
+from modules.vuln_scanning import run_nuclei, run_sqli_scan, run_xss_scan, run_lfi_scan, run_open_redirect_scan
 
 class ScanVulnRequest(BaseModel):
     domain: str
@@ -172,6 +212,9 @@ async def start_vuln_scan(req: ScanVulnRequest, background_tasks: BackgroundTask
         background_tasks.add_task(run_xss_scan, urls, req.domain, load_config(), broadcast_wrapper, scan_id)
     elif req.scan_type == "lfi":
         background_tasks.add_task(run_lfi_scan, urls, req.domain, load_config(), broadcast_wrapper, scan_id)
+    elif req.scan_type == "or":
+         # Open Redirect
+         background_tasks.add_task(run_open_redirect_scan, urls, req.domain, load_config(), broadcast_wrapper, scan_id)
     else:
         raise HTTPException(status_code=400, detail="Invalid scan type")
         

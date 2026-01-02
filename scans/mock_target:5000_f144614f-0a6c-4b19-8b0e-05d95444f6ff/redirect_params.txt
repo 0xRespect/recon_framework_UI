@@ -1,0 +1,10 @@
+https://mock_target:5000/?url=http://google.com
+https://mock_target:5000/?redirect=http://google.com
+https://mock_target:5000/?next=http://google.com
+https://mock_target:5000/?target=http://google.com
+https://mock_target:5000/?dest=http://google.com
+https://mock_target:5000/?destination=http://google.com
+https://mock_target:5000/?returnUrl=http://google.com
+https://mock_target:5000/?to=http://google.com
+https://mock_target:5000/?u=http://google.com
+https://mock_target:5000/?r=http://google.com

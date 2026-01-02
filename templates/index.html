@@ -164,19 +164,46 @@
 
             <!-- Live Console View -->
             <div id="view-live" class="content-view hidden h-full flex flex-col">
-                <!-- ... live content ... -->
                 <div class="flex justify-between items-center mb-2 px-1">
-                    <span class="text-xs text-gray-400 uppercase tracking-widest">Live Terminal</span>
-                    <button id="btn-stop-scan" onclick="stopScan()"
-                        class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-bold hidden flex items-center">
-                        <i data-lucide="square" class="w-3 h-3 mr-1 fill-current"></i> STOP SCAN
-                    </button>
+                    <div class="flex items-center space-x-4">
+                        <span class="text-xs text-gray-400 uppercase tracking-widest">Live Terminal</span>
+                        <!-- Console Toggles -->
+                        <div class="flex bg-gray-800 rounded p-0.5">
+                            <button onclick="toggleConsole('clean')" id="btn-console-clean"
+                                class="px-3 py-0.5 text-[10px] font-bold uppercase rounded bg-blue-600 text-white transition-all">
+                                Processed
+                            </button>
+                            <button onclick="toggleConsole('raw')" id="btn-console-raw"
+                                class="px-3 py-0.5 text-[10px] font-bold uppercase rounded text-gray-400 hover:text-white transition-all">
+                                Raw
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center space-x-2">
+                        <button onclick="clearConsole()" class="text-gray-500 hover:text-white" title="Clear Console">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                        <button id="btn-stop-scan" onclick="stopScan()"
+                            class="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-bold hidden flex items-center">
+                            <i data-lucide="square" class="w-3 h-3 mr-1 fill-current"></i> STOP SCAN
+                        </button>
+                    </div>
                 </div>
+
                 <div
-                    class="bg-black border border-gray-700 rounded-xl p-4 flex-1 overflow-auto font-mono text-sm shadow-2xl relative">
-                    <div id="console-output" class="space-y-1 pb-4">
+                    class="bg-black border border-gray-700 rounded-xl p-4 flex-1 overflow-auto font-mono text-sm shadow-2xl relative scrollbar-hide">
+
+                    <!-- Clean Console Container -->
+                    <div id="console-output-clean" class="space-y-1 pb-4">
                         <div class="text-gray-500">System initialization... Ready.</div>
                     </div>
+
+                    <!-- Raw Console Container (Hidden) -->
+                    <div id="console-output-raw" class="hidden space-y-0.5 pb-4 text-xs text-green-500/80">
+                        <div class="text-gray-500 italic mb-2">-- Raw Tool Output Stream --</div>
+                    </div>
+
                     <!-- Auto-scroll anchor -->
                     <div id="console-anchor"></div>
                 </div>
@@ -269,49 +296,71 @@
             </div>
 
             <!-- Fuzzing View (Placeholder) -->
-            <div id="view-fuzzing" class="content-view hidden space-y-6">
-                <div class="bg-gray-800 rounded-xl border border-gray-700 p-6">
-                    <h3 class="text-xl font-bold text-white mb-6 flex items-center">
-                        <i data-lucide="zap" class="w-6 h-6 mr-3 text-yellow-500"></i> FFUF Directory Fuzzing
-                    </h3>
+            <div id="view-fuzzing" class="content-view hidden space-y-4">
+                <!-- Configuration Card -->
+                <div
+                    class="bg-gray-800 rounded-xl border border-gray-700 p-5 shadow-lg hover:border-yellow-500/30 transition-colors">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-bold text-white flex items-center">
+                            <i data-lucide="zap" class="w-5 h-5 mr-2 text-yellow-500 fill-current"></i>
+                            FFUF Directory Fuzzing
+                        </h3>
+                        <span
+                            class="text-xs text-yellow-500/80 font-mono bg-yellow-900/20 px-2 py-0.5 rounded border border-yellow-500/20">READY</span>
+                    </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <!-- Configuration -->
-                        <div class="space-y-4">
+                    <div class="space-y-3">
+                        <div>
+                            <label class="block text-gray-500 text-[10px] font-bold uppercase mb-1">Target URL</label>
+                            <input type="text" id="ffuf-target-input" placeholder="https://example.com/FUZZ"
+                                class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 transition-all font-mono text-xs">
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-gray-400 text-sm font-bold mb-2">Target URL</label>
-                                <input type="text" id="ffuf-target-input" placeholder="https://example.com/FUZZ"
-                                    class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500">
-                            </div>
-                            <div>
-                                <label class="block text-gray-400 text-sm font-bold mb-2">Scan Profile</label>
+                                <label class="block text-gray-500 text-[10px] font-bold uppercase mb-1">Scan
+                                    Profile</label>
                                 <select id="ffuf-preset-select" onchange="toggleCustomWordlist()"
-                                    class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500">
-                                    <option value="deep">Deep & Aggressive (Big Wordlist, All Exts, Recursion)</option>
-                                    <option value="standard">Standard (Medium, Common Exts, Fast)</option>
-                                    <option value="custom">Custom (Select Wordlist)</option>
+                                    class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 transition-all appearance-none text-xs">
+                                    <option value="deep">Deep & Aggressive (Big Wordlist)</option>
+                                    <option value="standard">Standard (Common Exts)</option>
+                                    <option value="custom">Custom Configuration</option>
                                 </select>
                             </div>
+
                             <!-- Custom Wordlist Selection -->
                             <div id="ffuf-custom-wordlist" class="hidden">
-                                <label class="block text-gray-400 text-sm font-bold mb-2">Select Wordlist</label>
+                                <label class="block text-gray-400 text-xs font-bold uppercase mb-2">Select
+                                    Wordlist</label>
                                 <select id="ffuf-wordlist-select"
-                                    class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg px-4 py-2 focus:outline-none focus:border-yellow-500">
+                                    class="w-full bg-gray-900 border border-gray-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500 transition-all appearance-none">
                                     <option value="">Loading wordlists...</option>
                                 </select>
                             </div>
-                            <button onclick="startFuzzing()"
-                                class="w-full bg-yellow-600 hover:bg-yellow-700 text-white font-bold py-3 rounded-lg transition-colors flex justify-center items-center">
-                                <i data-lucide="play" class="w-4 h-4 mr-2"></i> Start Fuzzing
-                            </button>
                         </div>
 
-                        <!-- Output Placeholder -->
-                        <div id="ffuf-output"
-                            class="bg-black rounded-lg border border-gray-700 p-4 font-mono text-sm text-gray-400 overflow-y-auto max-h-96">
-                            <p class="mb-2 text-yellow-500"># Output Window</p>
-                            <p>Waiting for scan configuration...</p>
+                        <button onclick="startFuzzing()"
+                            class="w-full bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-white font-bold py-2 rounded-lg shadow-lg shadow-yellow-900/20 transition-all transform hover:scale-[1.01] flex justify-center items-center text-sm mt-2">
+                            <i data-lucide="play" class="w-4 h-4 mr-2 fill-current"></i> Start Fuzzing Operation
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Output Window -->
+                <div
+                    class="bg-gray-800 rounded-xl border border-gray-700 flex flex-col overflow-hidden shadow-lg h-[600px]">
+                    <div class="bg-gray-900/90 p-2 border-b border-gray-700 flex justify-between items-center">
+                        <span
+                            class="text-[10px] font-mono text-gray-400 uppercase font-bold tracking-wider ml-2">root@recon:~/ffuf-session</span>
+                        <div class="flex space-x-1.5 mr-2">
+                            <div class="w-2.5 h-2.5 rounded-full bg-red-500/80"></div>
+                            <div class="w-2.5 h-2.5 rounded-full bg-yellow-500/80"></div>
+                            <div class="w-2.5 h-2.5 rounded-full bg-green-500/80"></div>
                         </div>
+                    </div>
+                    <div id="ffuf-output"
+                        class="p-4 font-mono text-xs text-gray-300 overflow-y-auto flex-1 bg-black leading-relaxed font-console">
+                        <div class="text-gray-500 italic">Waiting for scan configuration...</div>
                     </div>
                 </div>
             </div>
@@ -333,123 +382,188 @@
 
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Target Domain</label>
                         <select id="scan-sqli-target"
-                            class="w-full bg-gray-900 border border-gray-700 text-white rounded p-2 mb-4">
+                            class="w-full bg-gray-900 border border-gray-600 text-white rounded p-2 mb-4 focus:ring-1 focus:ring-yellow-500 outline-none">
                             <!-- Populated by JS -->
                         </select>
 
-                        <div class="space-y-3 mb-6">
+                        <div class="space-y-3 mb-6 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50">
                             <label
-                                class="flex items-center p-3 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-750">
+                                class="flex items-center p-3 border border-gray-600 rounded-lg cursor-pointer bg-gray-800 hover:bg-gray-700 hover:border-yellow-500/50 transition-all group">
                                 <input type="radio" name="sqli-mode" value="smart" checked
-                                    class="form-radio text-yellow-500">
+                                    class="form-radio text-yellow-500 w-4 h-4">
                                 <div class="ml-3">
-                                    <span class="block text-sm font-bold text-gray-200">Smart Scan (Recommended)</span>
-                                    <span class="block text-xs text-gray-500">Uses <code
-                                            class="bg-gray-900 px-1 rounded">sqli.txt</code> (Tagged URLs only)</span>
+                                    <span
+                                        class="block text-sm font-bold text-gray-200 group-hover:text-yellow-400 transition-colors">Smart
+                                        Scan <span
+                                            class="text-[10px] bg-yellow-900/40 text-yellow-500 px-1.5 py-0.5 rounded ml-1 border border-yellow-900">RECOMMENDED</span></span>
+                                    <span class="block text-xs text-gray-400 mt-0.5">Scans tagged URLs (<code
+                                            class="text-yellow-500/80">sqli.txt</code>)</span>
                                 </div>
                             </label>
                             <label
-                                class="flex items-center p-3 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-750">
-                                <input type="radio" name="sqli-mode" value="all" class="form-radio text-gray-500">
+                                class="flex items-center p-3 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-750 transition-all opacity-70 hover:opacity-100">
+                                <input type="radio" name="sqli-mode" value="all"
+                                    class="form-radio text-gray-500 w-4 h-4">
                                 <div class="ml-3">
-                                    <span class="block text-sm font-bold text-gray-200">Full Scan</span>
-                                    <span class="block text-xs text-gray-500">Uses <code
-                                            class="bg-gray-900 px-1 rounded">all.txt</code> (Every parameter)</span>
+                                    <span class="block text-sm font-bold text-gray-300">Full Scan</span>
+                                    <span class="block text-xs text-gray-500 mt-0.5">Scans every parameter (<code
+                                            class="text-gray-500">all.txt</code>)</span>
                                 </div>
                             </label>
                         </div>
 
                         <button type="button" onclick="startVulnScan('sqli', event)"
-                            class="mt-auto w-full py-2 bg-yellow-600 hover:bg-yellow-500 text-white font-bold rounded-lg transition-colors">
+                            class="mt-auto w-full py-2.5 bg-gradient-to-r from-yellow-700 to-yellow-600 hover:from-yellow-600 hover:to-yellow-500 text-white font-bold rounded-lg shadow-lg shadow-yellow-900/20 transition-all transform hover:scale-[1.02]">
                             Start SQLi Scan
                         </button>
                     </div>
 
                     <!-- XSS Module -->
-                    <div class="bg-gray-800 rounded-xl border border-gray-700 p-6 flex flex-col">
+                    <div
+                        class="bg-gray-800 rounded-xl border border-gray-700 p-6 flex flex-col hover:border-red-500/30 transition-colors shadow-lg">
                         <div class="flex items-center gap-3 mb-4">
-                            <div class="p-3 bg-red-900/50 rounded-lg text-red-400">
+                            <div class="p-3 bg-red-900/30 rounded-lg text-red-500 ring-1 ring-red-500/20">
                                 <i data-lucide="code" class="w-6 h-6"></i>
                             </div>
                             <h3 class="text-xl font-bold text-white">Cross-Site Scripting</h3>
                         </div>
-                        <p class="text-gray-400 text-sm mb-6">Reflected & DOM XSS payload testing.</p>
+                        <p class="text-gray-400 text-sm mb-6 h-10">Detects Reflected & DOM XSS using advanced polyglot
+                            payloads.</p>
 
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Target Domain</label>
                         <select id="scan-xss-target"
-                            class="w-full bg-gray-900 border border-gray-700 text-white rounded p-2 mb-4">
+                            class="w-full bg-gray-900 border border-gray-600 text-white rounded p-2 mb-4 focus:ring-1 focus:ring-red-500 outline-none">
                             <!-- Populated by JS -->
                         </select>
 
-                        <div class="space-y-3 mb-6">
+                        <div class="space-y-3 mb-6 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50">
                             <label
-                                class="flex items-center p-3 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-750">
+                                class="flex items-center p-3 border border-gray-600 rounded-lg cursor-pointer bg-gray-800 hover:bg-gray-700 hover:border-red-500/50 transition-all group">
                                 <input type="radio" name="xss-mode" value="smart" checked
-                                    class="form-radio text-red-500">
+                                    class="form-radio text-red-500 w-4 h-4">
                                 <div class="ml-3">
-                                    <span class="block text-sm font-bold text-gray-200">Smart Scan</span>
-                                    <span class="block text-xs text-gray-500">Uses <code
-                                            class="bg-gray-900 px-1 rounded">xss.txt</code></span>
+                                    <span
+                                        class="block text-sm font-bold text-gray-200 group-hover:text-red-400 transition-colors">Smart
+                                        Scan <span
+                                            class="text-[10px] bg-red-900/40 text-red-500 px-1.5 py-0.5 rounded ml-1 border border-red-900">FAST</span></span>
+                                    <span class="block text-xs text-gray-400 mt-0.5">Scans tagged URLs (<code
+                                            class="text-red-500/80">xss.txt</code>)</span>
                                 </div>
                             </label>
                             <label
-                                class="flex items-center p-3 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-750">
-                                <input type="radio" name="xss-mode" value="all" class="form-radio text-gray-500">
+                                class="flex items-center p-3 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-750 transition-all opacity-70 hover:opacity-100">
+                                <input type="radio" name="xss-mode" value="all"
+                                    class="form-radio text-gray-500 w-4 h-4">
                                 <div class="ml-3">
-                                    <span class="block text-sm font-bold text-gray-200">Full Scan</span>
-                                    <span class="block text-xs text-gray-500">Uses <code
-                                            class="bg-gray-900 px-1 rounded">all.txt</code></span>
+                                    <span class="block text-sm font-bold text-gray-300">Full Scan</span>
+                                    <span class="block text-xs text-gray-500 mt-0.5">Scans every parameter (<code
+                                            class="text-gray-500">all.txt</code>)</span>
                                 </div>
                             </label>
                         </div>
 
                         <button type="button" onclick="startVulnScan('xss', event)"
-                            class="mt-auto w-full py-2 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg transition-colors">
+                            class="mt-auto w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-lg shadow-lg shadow-red-900/20 transition-all transform hover:scale-[1.02]">
                             Start XSS Scan
                         </button>
                     </div>
 
                     <!-- LFI Module -->
-                    <div class="bg-gray-800 rounded-xl border border-gray-700 p-6 flex flex-col">
+                    <div
+                        class="bg-gray-800 rounded-xl border border-gray-700 p-6 flex flex-col hover:border-blue-500/30 transition-colors shadow-lg">
+                        <!-- ... (LFI Content) ... -->
                         <div class="flex items-center gap-3 mb-4">
-                            <div class="p-3 bg-blue-900/50 rounded-lg text-blue-400">
+                            <div class="p-3 bg-blue-900/30 rounded-lg text-blue-500 ring-1 ring-blue-500/20">
                                 <i data-lucide="file-code" class="w-6 h-6"></i>
                             </div>
                             <h3 class="text-xl font-bold text-white">LFI / Path Traversal</h3>
                         </div>
-                        <p class="text-gray-400 text-sm mb-6">Local File Inclusion & Traversal checks.</p>
+                        <p class="text-gray-400 text-sm mb-6 h-10">Local File Inclusion & Traversal checks using
+                            dotdotpwn/nuclei logic.</p>
 
                         <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Target Domain</label>
                         <select id="scan-lfi-target"
-                            class="w-full bg-gray-900 border border-gray-700 text-white rounded p-2 mb-4">
+                            class="w-full bg-gray-900 border border-gray-600 text-white rounded p-2 mb-4 focus:ring-1 focus:ring-blue-500 outline-none">
                             <!-- Populated by JS -->
                         </select>
 
-                        <div class="space-y-3 mb-6">
+                        <div class="space-y-3 mb-6 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50">
+                            <!-- LFI Radio Buttons... -->
                             <label
-                                class="flex items-center p-3 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-750">
+                                class="flex items-center p-3 border border-gray-600 rounded-lg cursor-pointer bg-gray-800 hover:bg-gray-700 hover:border-blue-500/50 transition-all group">
                                 <input type="radio" name="lfi-mode" value="smart" checked
-                                    class="form-radio text-blue-500">
+                                    class="form-radio text-blue-500 w-4 h-4">
                                 <div class="ml-3">
-                                    <span class="block text-sm font-bold text-gray-200">Smart Scan</span>
-                                    <span class="block text-xs text-gray-500">Uses <code
-                                            class="bg-gray-900 px-1 rounded">lfi.txt</code></span>
+                                    <span
+                                        class="block text-sm font-bold text-gray-200 group-hover:text-blue-400 transition-colors">Smart
+                                        Scan <span
+                                            class="text-[10px] bg-blue-900/40 text-blue-500 px-1.5 py-0.5 rounded ml-1 border border-blue-900">FAST</span></span>
+                                    <span class="block text-xs text-gray-400 mt-0.5">Scans tagged URLs (<code
+                                            class="text-blue-500/80">lfi.txt</code>)</span>
                                 </div>
                             </label>
                             <label
-                                class="flex items-center p-3 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-750">
-                                <input type="radio" name="lfi-mode" value="all" class="form-radio text-gray-500">
+                                class="flex items-center p-3 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-750 transition-all opacity-70 hover:opacity-100">
+                                <input type="radio" name="lfi-mode" value="all"
+                                    class="form-radio text-gray-500 w-4 h-4">
                                 <div class="ml-3">
-                                    <span class="block text-sm font-bold text-gray-200">Full Scan</span>
-                                    <span class="block text-xs text-gray-500">Uses <code
-                                            class="bg-gray-900 px-1 rounded">all.txt</code></span>
+                                    <span class="block text-sm font-bold text-gray-300">Full Scan</span>
+                                    <span class="block text-xs text-gray-500 mt-0.5">Scans every parameter (<code
+                                            class="text-gray-500">all.txt</code>)</span>
                                 </div>
                             </label>
                         </div>
 
                         <button type="button" onclick="startVulnScan('lfi', event)"
-                            class="mt-auto w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg transition-colors">
+                            class="mt-auto w-full py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-lg shadow-lg shadow-blue-900/20 transition-all transform hover:scale-[1.02]">
                             Start LFI Scan
+                        </button>
+                    </div>
+
+                    <!-- Open Redirect Module -->
+                    <div
+                        class="bg-gray-800 rounded-xl border border-gray-700 p-6 flex flex-col hover:border-purple-500/30 transition-colors shadow-lg">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="p-3 bg-purple-900/30 rounded-lg text-purple-500 ring-1 ring-purple-500/20">
+                                <i data-lucide="arrow-right-circle" class="w-6 h-6"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-white">Open Redirect</h3>
+                        </div>
+                        <p class="text-gray-400 text-sm mb-6 h-10">Detects unvalidated redirects using heuristic payload
+                            injection.</p>
+
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Target Domain</label>
+                        <select id="scan-or-target"
+                            class="w-full bg-gray-900 border border-gray-600 text-white rounded p-2 mb-4 focus:ring-1 focus:ring-purple-500 outline-none">
+                            <!-- Populated by JS -->
+                        </select>
+
+                        <div class="space-y-3 mb-6 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50">
+                            <label
+                                class="flex items-center p-3 border border-gray-600 rounded-lg cursor-pointer bg-gray-800 hover:bg-gray-700 hover:border-purple-500/50 transition-all group">
+                                <input type="radio" name="or-mode" value="smart" checked
+                                    class="form-radio text-purple-500 w-4 h-4">
+                                <div class="ml-3">
+                                    <span
+                                        class="block text-sm font-bold text-gray-200 group-hover:text-purple-400 transition-colors">Smart
+                                        Scan <span
+                                            class="text-[10px] bg-purple-900/40 text-purple-500 px-1.5 py-0.5 rounded ml-1 border border-purple-900">FAST</span></span>
+                                    <span class="block text-xs text-gray-400 mt-0.5">Regex Filtering + Heuristics</span>
+                                </div>
+                            </label>
+                            <label
+                                class="flex items-center p-3 border border-gray-700 rounded-lg cursor-pointer hover:bg-gray-750 transition-all opacity-70 hover:opacity-100">
+                                <input type="radio" name="or-mode" value="all" class="form-radio text-gray-500 w-4 h-4">
+                                <div class="ml-3">
+                                    <span class="block text-sm font-bold text-gray-300">Full Scan</span>
+                                    <span class="block text-xs text-gray-500 mt-0.5">Fuzz all parameters (Slow)</span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <button type="button" onclick="startVulnScan('or', event)"
+                            class="mt-auto w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-lg shadow-lg shadow-purple-900/20 transition-all transform hover:scale-[1.02]">
+                            Start Redirect Scan
                         </button>
                     </div>
                 </div>
@@ -646,19 +760,38 @@
                         if (data.message.includes('[ALIVE]')) color = "text-green-500 font-bold";
 
                         appendLog(data.message, color);
+                    } else if (data.type === 'raw') {
+                        appendRawLog(data.message);
                     } else if (data.type === 'subdomain') {
                         // Optional: Update stats in real-time?
                     } else if (data.type === 'crawl') {
                         appendLog(`[CRAWL] Found ${data.url} [${data.tags.join(', ')}]`, "text-purple-400");
                     } else if (data.type === 'status') {
                         appendLog(`[STATUS] ${data.message}`, "text-yellow-400 font-bold");
+                    } else if (data.type === 'ffuf_command') {
+                        // Reset and print command line
+                        const outDiv = document.getElementById('ffuf-output');
+                        if (outDiv) {
+                            outDiv.innerHTML = ''; // Clear previous output
+
+                            // Print Command Line
+                            const cmdLine = document.createElement('div');
+                            cmdLine.className = "text-white font-bold mb-2 break-all";
+                            cmdLine.innerHTML = `<span class="text-green-500 mr-2">root@recon:~$</span>${data.command}`;
+                            outDiv.appendChild(cmdLine);
+
+                            // Add separator
+                            const separator = document.createElement('div');
+                            separator.className = "border-b border-gray-800 my-2";
+                            outDiv.appendChild(separator);
+                        }
                     } else if (data.type === 'ffuf_result') {
                         // Update FFUF specific output box
                         const outDiv = document.getElementById('ffuf-output');
                         if (outDiv) {
                             const div = document.createElement('div');
-                            div.className = "text-green-400 font-mono text-xs border-b border-gray-800 py-1";
-                            div.innerText = data.message;
+                            div.className = "text-green-400 font-mono text-xs py-0.5 hover:bg-gray-900 transition-colors";
+                            div.innerHTML = `<span class="text-blue-500 font-bold">[${data.data.status}]</span> ${data.data.url} <span class="text-gray-500 mx-1">|</span> <span class="text-yellow-500">sz: ${data.data.length}</span>`;
                             outDiv.appendChild(div);
                             outDiv.scrollTop = outDiv.scrollHeight; // Auto-scroll
                         }
@@ -786,16 +919,51 @@
                 }
             }
 
+            function toggleConsole(mode) {
+                const cleanView = document.getElementById('console-output-clean');
+                const rawView = document.getElementById('console-output-raw');
+                const btnClean = document.getElementById('btn-console-clean');
+                const btnRaw = document.getElementById('btn-console-raw');
+
+                if (mode === 'clean') {
+                    cleanView.classList.remove('hidden');
+                    rawView.classList.add('hidden');
+                    // Styling
+                    btnClean.className = "px-3 py-0.5 text-[10px] font-bold uppercase rounded bg-blue-600 text-white transition-all";
+                    btnRaw.className = "px-3 py-0.5 text-[10px] font-bold uppercase rounded text-gray-400 hover:text-white transition-all";
+                } else {
+                    cleanView.classList.add('hidden');
+                    rawView.classList.remove('hidden');
+                    // Styling
+                    btnClean.className = "px-3 py-0.5 text-[10px] font-bold uppercase rounded text-gray-400 hover:text-white transition-all";
+                    btnRaw.className = "px-3 py-0.5 text-[10px] font-bold uppercase rounded bg-green-900 border border-green-700 text-green-100 transition-all";
+                }
+
+                // Keep scroll
+                document.getElementById('console-anchor').scrollIntoView({ behavior: 'smooth' });
+            }
+
             function appendLog(msg, classes = "text-gray-300") {
+                const container = document.getElementById('console-output-clean');
                 const div = document.createElement('div');
-                // Timestamp
                 const time = new Date().toLocaleTimeString();
                 div.innerHTML = `<span class="text-gray-600 mr-2">[${time}]</span><span class="${classes}">${msg}</span>`;
-                consoleOutput.appendChild(div);
-                // Auto scroll only if we are in Live view or if user wants it? 
-                // Better to always scroll container if we are near bottom
-                // Simple approach: scroll into view
-                consoleAnchor.scrollIntoView({ behavior: 'smooth' });
+                container.appendChild(div);
+                document.getElementById('console-anchor').scrollIntoView({ behavior: 'smooth' });
+            }
+
+            function appendRawLog(msg) {
+                const container = document.getElementById('console-output-raw');
+                const div = document.createElement('div');
+                // Use pre-wrap for raw output formatting
+                div.className = "whitespace-pre-wrap hover:bg-gray-900/50 px-1";
+                div.textContent = msg; // Use textContent for safety and raw display
+                container.appendChild(div);
+
+                // Only auto-scroll raw log if it's visible to avoid performance hit
+                if (!container.classList.contains('hidden')) {
+                    document.getElementById('console-anchor').scrollIntoView({ behavior: 'smooth' });
+                }
             }
 
             // API Logic
@@ -825,7 +993,7 @@
                     });
 
                     // Populate Scanner Dropdowns
-                    ['sqli', 'xss', 'lfi'].forEach(type => {
+                    ['sqli', 'xss', 'lfi', 'or'].forEach(type => {
                         const select = document.getElementById(`scan-${type}-target`);
                         if (select) {
                             // Preserve current selection if possible logic could go here, but for now simple refresh
