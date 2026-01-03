@@ -18,10 +18,9 @@ class NucleiProvider(BaseProvider):
     async def stream_output(self, target: str, config: Dict[str, Any], scan_id: str = None) -> AsyncGenerator[Dict[str, Any], None]:
         # nuclei -u target -jsonl -silent
         
-        extra_flags = ["-jsonl", "-silent"]
-        
-        # severity = config.get("nuclei", {}).get("severity", "low,medium,high,critical")
-        # extra_flags.extend(["-s", severity])
+        # Load flags from config
+        default_flags = ["-jsonl", "-silent"]
+        extra_flags = await self.get_config("tool:nuclei:flags", default_flags)
         
         cmd_list = ["nuclei", "-u", target] + extra_flags
         command = shlex.join(cmd_list)

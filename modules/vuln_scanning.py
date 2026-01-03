@@ -53,16 +53,21 @@ async def run_nuclei(urls, domain, config, broadcast_callback=None, scan_id=None
         # Reading stdout line-by-line as JSON is good for streaming.
         
         # High Performance Flags (Optimized for i5-12400F / 16GB RAM)
-        concurrency = config.get('nuclei', {}).get('concurrency', 25) # Good match for 12 threads
-        bulk_size = config.get('nuclei', {}).get('bulk_size', 20)     # Parallel hosts
-        rate_limit = config.get('nuclei', {}).get('rate_limit', 300)  # SSD can handle this easily
+        # concurrency = config.get('nuclei', {}).get('concurrency', 25) 
+        # bulk_size = config.get('nuclei', {}).get('bulk_size', 20)     
+        # rate_limit = config.get('nuclei', {}).get('rate_limit', 300)  
         
-        # We assume 'nuclei' is in PATH (installed via go install)
-        # We explicitly omit -t to use default templates or user should configure ~/.nuclei-config.json
-        # Or we can specify common tags like cves, exposures.
-        # nuclei -tags cves,exposures,misconfiguration
+        # Fetch dynamic flags from DB
+        from core.repositories.sqlalchemy_repo import SqlAlchemyRepository
+        repo = SqlAlchemyRepository()
+        default_flags = ["-jsonl", "-silent", "-bs", "20", "-c", "25", "-rate-limit", "300"]
+        flags = await repo.get_config_value("tool:nuclei:flags", default_flags)
         
-        cmd = f"nuclei -l {temp_path} -jsonl -silent -bs {bulk_size} -c {concurrency} -rate-limit {rate_limit}"
+        # Concat flags
+        # If flags is list: ["-a", "-b"] -> "-a -b"
+        flags_str = " ".join(flags)
+        
+        cmd = f"nuclei -l {temp_path} {flags_str}"
         
         process = await asyncio.create_subprocess_shell(
             cmd,

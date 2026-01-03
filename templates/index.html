@@ -91,6 +91,11 @@
                     id="nav-vulns">
                     <i data-lucide="shield-alert" class="w-5 h-5 mr-3"></i> Vulnerabilities
                 </a>
+                <a href="#" onclick="showTab('settings')"
+                    class="nav-item flex items-center px-4 py-3 rounded-lg hover:bg-gray-700 transition-colors text-gray-300 hover:text-white"
+                    id="nav-settings">
+                    <i data-lucide="settings" class="w-5 h-5 mr-3"></i> Settings
+                </a>
             </nav>
         </div>
         <div class="p-4 border-t border-gray-700">
@@ -614,6 +619,352 @@
                 <div class="text-center text-gray-500 mt-20">Vulnerability Module - Under Construction</div>
             </div>
 
+            <!-- Settings View -->
+            <div id="view-settings" class="content-view hidden space-y-6">
+                <!-- Header Actions -->
+                <div class="flex justify-between items-center bg-gray-800 p-6 rounded-xl border border-gray-700">
+                    <div>
+                        <h3 class="text-xl font-bold text-white">Global Configuration</h3>
+                        <p class="text-gray-400 text-sm">Control scan phases and tool behavior dynamically.</p>
+                    </div>
+                    <button onclick="saveSettings()"
+                        class="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-lg font-bold flex items-center shadow-lg shadow-blue-900/20 hover:scale-105 transition-transform">
+                        <i data-lucide="save" class="w-4 h-4 mr-2"></i> Save & Sync Settings
+                    </button>
+                </div>
+
+                <!-- Phase Toggles -->
+                <div class="bg-gray-800 rounded-xl border border-gray-700 p-6">
+                    <h4 class="text-lg font-bold text-white mb-4 flex items-center">
+                        <i data-lucide="layers" class="w-5 h-5 mr-2 text-green-400"></i> Execution Phases
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- Phase 1 -->
+                        <label
+                            class="flex items-center p-4 bg-gray-900 rounded-lg border border-gray-700 cursor-pointer hover:border-gray-500 transition-colors">
+                            <input type="checkbox" id="phase-subdomain"
+                                class="w-5 h-5 text-green-500 rounded focus:ring-green-500 bg-gray-800 border-gray-600">
+                            <div class="ml-3">
+                                <span class="block text-sm font-bold text-white">Phase 1: Subdomains</span>
+                                <span class="block text-xs text-gray-500">Enumeration (Subfinder/etc)</span>
+                            </div>
+                        </label>
+                        <!-- Phase 2 -->
+                        <label
+                            class="flex items-center p-4 bg-gray-900 rounded-lg border border-gray-700 cursor-pointer hover:border-gray-500 transition-colors">
+                            <input type="checkbox" id="phase-host"
+                                class="w-5 h-5 text-green-500 rounded focus:ring-green-500 bg-gray-800 border-gray-600">
+                            <div class="ml-3">
+                                <span class="block text-sm font-bold text-white">Phase 2: Host Discovery</span>
+                                <span class="block text-xs text-gray-500">Live Probing (HTTPX)</span>
+                            </div>
+                        </label>
+                        <!-- Phase 3 -->
+                        <label
+                            class="flex items-center p-4 bg-gray-900 rounded-lg border border-gray-700 cursor-pointer hover:border-gray-500 transition-colors">
+                            <input type="checkbox" id="phase-crawling"
+                                class="w-5 h-5 text-green-500 rounded focus:ring-green-500 bg-gray-800 border-gray-600">
+                            <div class="ml-3">
+                                <span class="block text-sm font-bold text-white">Phase 3: Crawling</span>
+                                <span class="block text-xs text-gray-500">Content Discovery (Katana/Gau)</span>
+                            </div>
+                        </label>
+                        <!-- Phase 5 -->
+                        <label
+                            class="flex items-center p-4 bg-gray-900 rounded-lg border border-gray-700 cursor-pointer hover:border-gray-500 transition-colors">
+                            <input type="checkbox" id="phase-vuln"
+                                class="w-5 h-5 text-green-500 rounded focus:ring-green-500 bg-gray-800 border-gray-600">
+                            <div class="ml-3">
+                                <span class="block text-sm font-bold text-white">Phase 5: Vuln Scan</span>
+                                <span class="block text-xs text-gray-500">Vulnerability Checks (Nuclei)</span>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+
+
+
+                <!-- Tool Configuration -->
+                <div class="bg-gray-800 rounded-xl border border-gray-700 p-6">
+                    <h4 class="text-lg font-bold text-white mb-6 flex items-center">
+                        <i data-lucide="terminal-square" class="w-5 h-5 mr-2 text-blue-400"></i> Tool Configuration
+                    </h4>
+
+                    <div class="space-y-6">
+                        <!-- Subfinder Config -->
+                        <div class="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                            <div class="mb-3">
+                                <span class="text-xs text-blue-400 font-bold uppercase tracking-wider mb-1 block">Live
+                                    Command Preview</span>
+                                <div
+                                    class="font-mono text-sm text-green-400 bg-gray-950 p-2 rounded border border-gray-800 break-all flex items-center">
+                                    <span class="text-gray-500 mr-2 select-none">$</span>
+                                    <span id="preview-subfinder">subfinder -d target.com ...</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center mb-4">
+                                <h5 class="font-bold text-white text-md">Subfinder Flags</h5>
+                                <span
+                                    class="text-xs font-mono text-gray-500 bg-gray-800 px-2 py-1 rounded">tool:subfinder:flags</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 mb-3">
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="subfinder" value="-silent">
+                                    <span>-silent (Required)</span>
+                                </label>
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="subfinder" value="-all">
+                                    <span>-all (All sources)</span>
+                                </label>
+                            </div>
+                            <!-- Custom Flags Input -->
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <span class="text-gray-500 font-mono text-xs">></span>
+                                </div>
+                                <input type="text" id="flags-subfinder-custom"
+                                    class="w-full bg-gray-800 border border-gray-600 text-gray-300 text-sm rounded-lg pl-8 p-2.5 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                                    placeholder="Add custom flags (e.g. -recursive)">
+                            </div>
+                        </div>
+
+                        <!-- HTTPX Config -->
+                        <div class="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                            <div class="mb-3">
+                                <span class="text-xs text-blue-400 font-bold uppercase tracking-wider mb-1 block">Live
+                                    Command Preview</span>
+                                <div
+                                    class="font-mono text-sm text-green-400 bg-gray-950 p-2 rounded border border-gray-800 break-all flex items-center">
+                                    <span class="text-gray-500 mr-2 select-none">$</span>
+                                    <span id="preview-httpx">httpx -l targets.txt ...</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center mb-4">
+                                <h5 class="font-bold text-white text-md">HTTPX Flags</h5>
+                                <span
+                                    class="text-xs font-mono text-gray-500 bg-gray-800 px-2 py-1 rounded">tool:httpx:flags</span>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="httpx" value="-title">
+                                    <span>-title</span>
+                                </label>
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="httpx" value="-tech-detect">
+                                    <span>-tech-detect</span>
+                                </label>
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="httpx" value="-status-code">
+                                    <span>-status-code</span>
+                                </label>
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="httpx" value="-json">
+                                    <span>-json (Required)</span>
+                                </label>
+                            </div>
+                            <div class="relative">
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <span class="text-gray-500 font-mono text-xs">></span>
+                                </div>
+                                <input type="text" id="flags-httpx-custom"
+                                    class="w-full bg-gray-800 border border-gray-600 text-gray-300 text-sm rounded-lg pl-8 p-2.5 focus:ring-blue-500 focus:border-blue-500 font-mono"
+                                    placeholder="Add custom flags (e.g. -follow-redirects)">
+                            </div>
+                        </div>
+
+                        <!-- Nuclei Config -->
+                        <div class="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                            <div class="mb-3">
+                                <span class="text-xs text-blue-400 font-bold uppercase tracking-wider mb-1 block">Live
+                                    Command Preview</span>
+                                <div
+                                    class="font-mono text-sm text-green-400 bg-gray-950 p-2 rounded border border-gray-800 break-all flex items-center">
+                                    <span class="text-gray-500 mr-2 select-none">$</span>
+                                    <span id="preview-nuclei">nuclei -u target ...</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center mb-4">
+                                <h5 class="font-bold text-white text-md">Nuclei Flags</h5>
+                                <span
+                                    class="text-xs font-mono text-gray-500 bg-gray-800 px-2 py-1 rounded">tool:nuclei:flags</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 mb-3">
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="nuclei" value="-jsonl">
+                                    <span>-jsonl (Required)</span>
+                                </label>
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="nuclei" value="-silent">
+                                    <span>-silent</span>
+                                </label>
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="nuclei" value="-debug">
+                                    <span>-debug</span>
+                                </label>
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="nuclei" value="-v">
+                                    <span>-v (Verbose)</span>
+                                </label>
+                            </div>
+                            <div class="relative">
+                                <span
+                                    class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 font-mono text-xs">></span>
+                                <input type="text" id="flags-nuclei-custom"
+                                    class="w-full bg-gray-800 border border-gray-600 text-gray-300 text-sm rounded-lg pl-8 p-2.5 focus:ring-blue-500 font-mono"
+                                    placeholder="Custom flags (-rate-limit 500 -bs 25)">
+                            </div>
+                        </div>
+
+                        <!-- Katana Config -->
+                        <div class="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                            <div class="mb-3">
+                                <span class="text-xs text-blue-400 font-bold uppercase tracking-wider mb-1 block">Live
+                                    Command Preview</span>
+                                <div
+                                    class="font-mono text-sm text-green-400 bg-gray-950 p-2 rounded border border-gray-800 break-all flex items-center">
+                                    <span class="text-gray-500 mr-2 select-none">$</span>
+                                    <span id="preview-katana">katana -u target ...</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center mb-4">
+                                <h5 class="font-bold text-white text-md">Katana Flags</h5>
+                                <span
+                                    class="text-xs font-mono text-gray-500 bg-gray-800 px-2 py-1 rounded">tool:katana:flags</span>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 mb-3">
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="katana" value="-j">
+                                    <span>-j (JSON)</span>
+                                </label>
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="katana" value="-jc">
+                                    <span>-jc (JSON Lines)</span>
+                                </label>
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="katana" value="-d">
+                                    <span>-depth</span>
+                                </label>
+                                <label class="flex items-center space-x-2 text-sm text-gray-300">
+                                    <input type="checkbox"
+                                        class="form-checkbox text-blue-500 bg-gray-800 border-gray-600"
+                                        data-tool="katana" value="-js-crawl">
+                                    <span>-js-crawl</span>
+                                </label>
+                            </div>
+                            <div class="relative">
+                                <span
+                                    class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 font-mono text-xs">></span>
+                                <input type="text" id="flags-katana-custom"
+                                    class="w-full bg-gray-800 border border-gray-600 text-gray-300 text-sm rounded-lg pl-8 p-2.5 focus:ring-blue-500 font-mono"
+                                    placeholder="Custom flags (-depth 5)">
+                            </div>
+                        </div>
+
+                        <!-- Gau Config -->
+                        <div class="bg-gray-900/50 p-4 rounded-lg border border-gray-700">
+                            <div class="mb-3">
+                                <span class="text-xs text-blue-400 font-bold uppercase tracking-wider mb-1 block">Live
+                                    Command Preview</span>
+                                <div
+                                    class="font-mono text-sm text-green-400 bg-gray-950 p-2 rounded border border-gray-800 break-all flex items-center">
+                                    <span class="text-gray-500 mr-2 select-none">$</span>
+                                    <span id="preview-gau">gau target ...</span>
+                                </div>
+                            </div>
+                            <div class="flex justify-between items-center mb-4">
+                                <h5 class="font-bold text-white text-md">GAU Flags</h5>
+                                <span
+                                    class="text-xs font-mono text-gray-500 bg-gray-800 px-2 py-1 rounded">tool:gau:flags</span>
+                            </div>
+                            <div class="relative">
+                                <span
+                                    class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 font-mono text-xs">></span>
+                                <input type="text" id="flags-gau-custom"
+                                    class="w-full bg-gray-800 border border-gray-600 text-gray-300 text-sm rounded-lg pl-8 p-2.5 focus:ring-blue-500 font-mono"
+                                    placeholder="--threads 10 --subs">
+                            </div>
+                            <div class="mt-2 text-xs text-gray-500">
+                                Common: --threads 5, --subs, --providers wayback,commoncrawl
+                            </div>
+                        </div>
+
+                        <!-- Advanced Vuln Modules -->
+                        <div class="mt-8 border-t border-gray-700 pt-6">
+                            <h4 class="text-lg font-bold text-white mb-4 flex items-center">
+                                <i data-lucide="bomb" class="w-5 h-5 mr-2 text-red-500"></i> Vulnerability Modules
+                            </h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <label
+                                    class="flex items-center p-3 bg-gray-900 rounded-lg border border-gray-700 cursor-pointer hover:border-red-500 transition-colors">
+                                    <input type="checkbox" id="scan-nuclei"
+                                        class="w-5 h-5 text-red-500 rounded bg-gray-800 border-gray-600">
+                                    <div class="ml-3">
+                                        <span class="block text-sm font-bold text-white">Nuclei Templates</span>
+                                        <span class="block text-xs text-gray-500">General Vulnerability Scanning</span>
+                                    </div>
+                                </label>
+                                <label
+                                    class="flex items-center p-3 bg-gray-900 rounded-lg border border-gray-700 cursor-pointer hover:border-red-500 transition-colors">
+                                    <input type="checkbox" id="scan-xss"
+                                        class="w-5 h-5 text-red-500 rounded bg-gray-800 border-gray-600">
+                                    <div class="ml-3">
+                                        <span class="block text-sm font-bold text-white">XSS Scanner</span>
+                                        <span class="block text-xs text-gray-500">Advanced Pipeline (Gxss +
+                                            Dalfox)</span>
+                                    </div>
+                                </label>
+                                <label
+                                    class="flex items-center p-3 bg-gray-900 rounded-lg border border-gray-700 cursor-pointer hover:border-red-500 transition-colors">
+                                    <input type="checkbox" id="scan-sqli"
+                                        class="w-5 h-5 text-red-500 rounded bg-gray-800 border-gray-600">
+                                    <div class="ml-3">
+                                        <span class="block text-sm font-bold text-white">SQLi Scanner</span>
+                                        <span class="block text-xs text-gray-500">Error-based + SQLMap
+                                            Verification</span>
+                                    </div>
+                                </label>
+                                <label
+                                    class="flex items-center p-3 bg-gray-900 rounded-lg border border-gray-700 cursor-pointer hover:border-red-500 transition-colors">
+                                    <input type="checkbox" id="scan-redirect"
+                                        class="w-5 h-5 text-red-500 rounded bg-gray-800 border-gray-600">
+                                    <div class="ml-3">
+                                        <span class="block text-sm font-bold text-white">Open Redirect</span>
+                                        <span class="block text-xs text-gray-500">Payload Fuzzing + HTTPX</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
         </div>
         <!-- Toast Container -->
         <div id="toast-container" class="fixed bottom-5 right-5 z-50 space-y-3"></div>
@@ -782,6 +1133,7 @@
 
                 if (tabId === 'targets') fetchTargets();
                 if (tabId === 'scanner') fetchTargets(); // Ensure dropdowns are populated
+                if (tabId === 'settings') loadSettings();
                 if (tabId === 'inventory') {
                     if (currentDomain) {
                         showInventoryDetail();
@@ -1419,6 +1771,164 @@
                     outputDiv.innerHTML += `<div class="text-red-500">Error: ${e}</div>`;
                 }
             }
+
+            // --- Settings Logic ---
+            async function loadSettings() {
+                try {
+                    const res = await fetch('/api/settings');
+                    const settings = await res.json();
+
+                    // Phases
+                    document.getElementById('phase-subdomain').checked = settings["phase:subdomain"] !== false;
+                    document.getElementById('phase-host').checked = settings["phase:host_discovery"] !== false;
+                    document.getElementById('phase-crawling').checked = settings["phase:crawling"] !== false;
+                    document.getElementById('phase-vuln').checked = settings["phase:vuln_scan"] !== false;
+
+                    // Vuln Modules
+                    document.getElementById('scan-nuclei').checked = settings["phase:scan:nuclei"] !== false;
+                    document.getElementById('scan-xss').checked = settings["phase:scan:xss"] === true;
+                    document.getElementById('scan-sqli').checked = settings["phase:scan:sqli"] === true;
+                    document.getElementById('scan-redirect').checked = settings["phase:scan:redirect"] === true;
+
+                    // Tools Helper
+                    const setFlags = (tool, key) => {
+                        const flags = settings[key] || [];
+                        const customInput = document.getElementById(`flags-${tool}-custom`);
+                        const checkboxes = document.querySelectorAll(`input[data-tool="${tool}"]`);
+
+                        let customFlags = [...flags];
+
+                        checkboxes.forEach(cb => {
+                            if (flags.includes(cb.value)) {
+                                cb.checked = true;
+                                customFlags = customFlags.filter(f => f !== cb.value);
+                            } else {
+                                cb.checked = false;
+                            }
+                        });
+
+                        if (customInput) customInput.value = customFlags.join(' ');
+                    };
+
+                    setFlags('subfinder', 'tool:subfinder:flags');
+                    setFlags('httpx', 'tool:httpx:flags');
+                    setFlags('nuclei', 'tool:nuclei:flags');
+                    setFlags('katana', 'tool:katana:flags');
+                    setFlags('gau', 'tool:gau:flags');
+
+                } catch (e) {
+                    console.error("Failed to load settings", e);
+                    toast("Failed to load settings", "error");
+                }
+            }
+
+            async function saveSettings() {
+                const settings = {};
+
+                // Phases
+                settings["phase:subdomain"] = document.getElementById('phase-subdomain').checked;
+                settings["phase:host_discovery"] = document.getElementById('phase-host').checked;
+                settings["phase:crawling"] = document.getElementById('phase-crawling').checked;
+                settings["phase:vuln_scan"] = document.getElementById('phase-vuln').checked;
+
+                // Vuln Modules
+                settings["phase:scan:nuclei"] = document.getElementById('scan-nuclei').checked;
+                settings["phase:scan:xss"] = document.getElementById('scan-xss').checked;
+                settings["phase:scan:sqli"] = document.getElementById('scan-sqli').checked;
+                settings["phase:scan:redirect"] = document.getElementById('scan-redirect').checked;
+
+                // Tools Helper
+                const getFlags = (tool) => {
+                    const flags = [];
+                    document.querySelectorAll(`input[data-tool="${tool}"]:checked`).forEach(cb => flags.push(cb.value));
+
+                    const customInput = document.getElementById(`flags-${tool}-custom`);
+                    const custom = customInput ? customInput.value.trim() : "";
+                    if (custom) {
+                        flags.push(...custom.split(/\s+/));
+                    }
+                    return flags;
+                };
+
+                settings["tool:subfinder:flags"] = getFlags('subfinder');
+                settings["tool:httpx:flags"] = getFlags('httpx');
+                settings["tool:nuclei:flags"] = getFlags('nuclei');
+                settings["tool:katana:flags"] = getFlags('katana');
+                settings["tool:gau:flags"] = getFlags('gau');
+
+                try {
+                    await fetch('/api/settings/update', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ settings })
+                    });
+                    toast("Settings Saved & Synced", "success");
+                } catch (e) {
+                    console.error("Save failed", e);
+                    toast("Failed to save settings", "error");
+                }
+            }
+
+            // Command Preview Logic
+            function updatePreview() {
+                // Subfinder
+                let subCmd = "subfinder -d target.com";
+                document.querySelectorAll('input[data-tool="subfinder"]:checked').forEach(cb => {
+                    subCmd += ` ${cb.value}`;
+                });
+                const subCustom = document.getElementById('flags-subfinder-custom');
+                if (subCustom && subCustom.value.trim()) subCmd += ` ${subCustom.value.trim()}`;
+                const subPrev = document.getElementById('preview-subfinder');
+                if (subPrev) subPrev.innerText = subCmd;
+
+                // HTTPX
+                let httpxCmd = "httpx -l targets.txt";
+                document.querySelectorAll('input[data-tool="httpx"]:checked').forEach(cb => {
+                    httpxCmd += ` ${cb.value}`;
+                });
+                const httpxCustom = document.getElementById('flags-httpx-custom');
+                if (httpxCustom && httpxCustom.value.trim()) httpxCmd += ` ${httpxCustom.value.trim()}`;
+                const httpxPrev = document.getElementById('preview-httpx');
+                if (httpxPrev) httpxPrev.innerText = httpxCmd;
+
+                // Nuclei
+                let nucleiCmd = "nuclei -u target";
+                document.querySelectorAll('input[data-tool="nuclei"]:checked').forEach(cb => {
+                    nucleiCmd += ` ${cb.value}`;
+                });
+                const nucleiCustom = document.getElementById('flags-nuclei-custom');
+                if (nucleiCustom && nucleiCustom.value.trim()) nucleiCmd += ` ${nucleiCustom.value.trim()}`;
+                const nucleiPrev = document.getElementById('preview-nuclei');
+                if (nucleiPrev) nucleiPrev.innerText = nucleiCmd;
+
+                // Katana
+                let katanaCmd = "katana -u target";
+                document.querySelectorAll('input[data-tool="katana"]:checked').forEach(cb => {
+                    katanaCmd += ` ${cb.value}`;
+                });
+                const katanaCustom = document.getElementById('flags-katana-custom');
+                if (katanaCustom && katanaCustom.value.trim()) katanaCmd += ` ${katanaCustom.value.trim()}`;
+                const katanaPrev = document.getElementById('preview-katana');
+                if (katanaPrev) katanaPrev.innerText = katanaCmd;
+
+                // Gau
+                let gauCmd = "gau target";
+                document.querySelectorAll('input[data-tool="gau"]:checked').forEach(cb => {
+                    gauCmd += ` ${cb.value}`;
+                });
+                const gauCustom = document.getElementById('flags-gau-custom');
+                if (gauCustom && gauCustom.value.trim()) gauCmd += ` ${gauCustom.value.trim()}`;
+                const gauPrev = document.getElementById('preview-gau');
+                if (gauPrev) gauPrev.innerText = gauCmd;
+            }
+
+            // Attach listeners
+            document.querySelectorAll('input[data-tool], input[id^="flags-"]').forEach(el => {
+                el.addEventListener('change', updatePreview);
+                el.addEventListener('input', updatePreview);
+            });
+            // Initial call
+            setTimeout(updatePreview, 1000); // Wait for loadSettings
 
             // Init
             connectWS();

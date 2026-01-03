@@ -150,7 +150,18 @@ class SqlAlchemyRepository(IRepository):
             
             return {
                 "total_subdomains": total_subs or 0,
-                "alive_hosts": alive_hosts or 0,
-                "crawled_urls": total_urls or 0,
                 "vulns_by_severity": vulns_map
             }
+
+    async def get_config_value(self, key: str, default=None):
+        from core.models import Configuration
+        import json
+        async with self.session_factory() as session:
+             result = await session.execute(select(Configuration).filter_by(key=key))
+             config = result.scalars().first()
+             if config:
+                 try:
+                     return json.loads(config.value)
+                 except:
+                     return config.value
+             return default

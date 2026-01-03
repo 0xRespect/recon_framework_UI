@@ -202,6 +202,74 @@ async def revoke_task(task_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# --- Settings API ---
+from core.models import Configuration
+from pydantic import BaseModel
+
+class SettingsUpdate(BaseModel):
+    settings: dict # Key-Value pairs to update
+
+@app.get("/api/settings")
+async def get_settings(db: AsyncSessionLocal = Depends(get_async_session)):
+    from sqlalchemy.future import select
+    async with db as session:
+        result = await session.execute(select(Configuration))
+        configs = result.scalars().all()
+        
+        # Flatten to dict
+        settings = {}
+        for c in configs:
+            try:
+                 settings[c.key] = json.loads(c.value)
+            except:
+                 settings[c.key] = c.value
+        
+        # Default Fallbacks if empty
+        defaults = {
+            "phase:subdomain": True,
+            "phase:host_discovery": True,
+            "phase:crawling": True,
+            "phase:vuln_scan": True,
+            "tool:subfinder:flags": ["-silent", "-all"],
+            "tool:httpx:flags": ["-title", "-tech-detect", "-status-code", "-json", "-silent"],
+            "tool:nuclei:flags": ["-jsonl", "-silent"],
+            "tool:katana:flags": ["-j", "-jc", "-silent", "-d", "3"],
+            "tool:gau:flags": ["--threads", "10", "--subs"],
+            "phase:scan:nuclei": True,
+            "phase:scan:xss": False,
+            "phase:scan:sqli": False,
+            "phase:scan:redirect": False
+        }
+        
+        # Merge defaults
+        for k, v in defaults.items():
+            if k not in settings:
+                settings[k] = v
+                
+        return settings
+
+@app.post("/api/settings/update")
+async def update_settings(req: SettingsUpdate, db: AsyncSessionLocal = Depends(get_async_session)):
+    from sqlalchemy.future import select
+    async with db as session:
+        for key, value in req.settings.items():
+            # Check exist
+            result = await session.execute(select(Configuration).filter_by(key=key))
+            config = result.scalars().first()
+            
+            val_str = json.dumps(value)
+            
+            if config:
+                config.value = val_str
+            else:
+                new_config = Configuration(key=key, value=val_str)
+                session.add(new_config)
+        
+        await session.commit()
+    
+    await manager.broadcast({"type": "status", "message": "Global Settings Updated"})
+    return {"message": "Settings updated"}
+
 from pydantic import BaseModel
 from modules.vuln_scanning import run_nuclei, run_sqli_scan, run_xss_scan, run_lfi_scan, run_open_redirect_scan
 

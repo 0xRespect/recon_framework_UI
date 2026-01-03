@@ -209,9 +209,16 @@ async def run_httpx_adapter(targets_list, domain, config, **kwargs):
 
 async def run_subdomain_enumeration_phase(domain, config, broadcast_callback=None, scan_id=None):
     """Orchestrates Phase 1 (Subdomains) using Providers."""
-    logger.info(f"STARTING PHASE 1: SUBDOMAIN ENUMERATION for {domain} (ID: {scan_id})")
     
     repo = SqlAlchemyRepository()
+    if not await repo.get_config_value("phase:subdomain", True):
+        logger.info(f"Skipping Phase 1 for {domain} (Disabled in Settings)")
+        # Proceed to next phase
+        await run_host_discovery_phase(domain, config, broadcast_callback=broadcast_callback, scan_id=scan_id)
+        return []
+
+    logger.info(f"STARTING PHASE 1: SUBDOMAIN ENUMERATION for {domain} (ID: {scan_id})")
+    
     # Ensure root domain in DB
     await repo.add_subdomain(domain, domain, "Root")
 
@@ -236,8 +243,15 @@ async def run_subdomain_enumeration_phase(domain, config, broadcast_callback=Non
 
 async def run_host_discovery_phase(domain, config, broadcast_callback=None, scan_id=None, trigger_next_phase=True):
     """Phase 2: Live Host Discovery using HTTPX Provider."""
-    logger.info(f"STARTING PHASE 2: HOST DISCOVERY for {domain} (ID: {scan_id})")
     repo = SqlAlchemyRepository()
+    
+    if not await repo.get_config_value("phase:host_discovery", True):
+        logger.info(f"Skipping Phase 2 for {domain} (Disabled in Settings)")
+        if trigger_next_phase:
+            await run_crawling_phase(domain, config, broadcast_callback=broadcast_callback, scan_id=scan_id)
+        return []
+
+    logger.info(f"STARTING PHASE 2: HOST DISCOVERY for {domain} (ID: {scan_id})")
     if broadcast_callback:
         await broadcast_callback({"type": "status", "message": "Starting Phase 2: Host Discovery"})
 
@@ -256,8 +270,14 @@ async def run_host_discovery_phase(domain, config, broadcast_callback=None, scan
 
 async def run_crawling_phase(domain, config, broadcast_callback=None, scan_id=None):
     """Phase 3: Content Discovery (Legacy Wrappers)."""
-    logger.info(f"STARTING PHASE 3: CRAWLING for {domain} (ID: {scan_id})")
     repo = SqlAlchemyRepository()
+    
+    if not await repo.get_config_value("phase:crawling", True):
+        logger.info(f"Skipping Phase 3 for {domain} (Disabled in Settings)")
+        await run_vuln_scanning_phase(domain, config, broadcast_callback=broadcast_callback, scan_id=scan_id)
+        return []
+
+    logger.info(f"STARTING PHASE 3: CRAWLING for {domain} (ID: {scan_id})")
     if broadcast_callback:
         await broadcast_callback({"type": "status", "message": "Starting Phase 3: Content Discovery"})
         
@@ -285,28 +305,50 @@ async def run_crawling_phase(domain, config, broadcast_callback=None, scan_id=No
 from core.db_manager import get_all_crawled_urls 
 # Note: we should move get_all_crawled_urls to Repo, but run_nuclei might need refactor or we update calling logic.
 
+from modules.vuln_scanning import run_nuclei, run_sqli_scan, run_xss_scan, run_open_redirect_scan
+
 async def run_vuln_scanning_phase(domain, config, broadcast_callback=None, scan_id=None):
-    """Phase 5: Vulnerability Scanning (Nuclei)."""
-    logger.info(f"STARTING PHASE 5: VULN SCANNING for {domain} (ID: {scan_id})")
+    """Phase 5: Vulnerability Scanning (Nuclei + Specialized Modules)."""
     repo = SqlAlchemyRepository()
+    
+    if not await repo.get_config_value("phase:vuln_scan", True):
+        logger.info(f"Skipping Phase 5 for {domain} (Disabled in Settings)")
+        return []
+
+    logger.info(f"STARTING PHASE 5: VULN SCANNING for {domain} (ID: {scan_id})")
     if broadcast_callback:
-        await broadcast_callback({"type": "status", "message": "Starting Phase 5: Nuclei Scanning"})
+        await broadcast_callback({"type": "status", "message": "Starting Phase 5: Vulnerability Scanning"})
         
     # Collect Targets via Repo
     subdomains = await repo.get_alive_subdomains(domain)
     
-    targets = set()
+    contacts = set() # All potential URL endpoints
     for sub in subdomains:
-        targets.add(f"http://{sub}")
-        targets.add(f"https://{sub}")
+        contacts.add(f"http://{sub}")
+        contacts.add(f"https://{sub}")
         
     # Crawled URLs via Repo
     crawled = await repo.get_crawled_urls(domain)
     for url in crawled:
-        targets.add(url)
+        contacts.add(url)
         
-    # Using Legacy Nuclei Runner
-    await run_nuclei(list(targets), domain, config, broadcast_callback, scan_id)
+    target_list = list(contacts)
+        
+    # 1. Nuclei (General)
+    if await repo.get_config_value("phase:scan:nuclei", True):
+         await run_nuclei(target_list, domain, config, broadcast_callback, scan_id)
+
+    # 2. XSS (Specialized)
+    if await repo.get_config_value("phase:scan:xss", False): # Default False for speed unless requested
+         await run_xss_scan(target_list, domain, config, broadcast_callback, scan_id)
+         
+    # 3. SQLi (Specialized)
+    if await repo.get_config_value("phase:scan:sqli", False):
+         await run_sqli_scan(target_list, domain, config, broadcast_callback, scan_id)
+         
+    # 4. Open Redirect (Specialized)
+    if await repo.get_config_value("phase:scan:redirect", False):
+         await run_open_redirect_scan(target_list, domain, config, broadcast_callback, scan_id)
 
     if broadcast_callback:
         await broadcast_callback({"type": "status", "message": "Phase 5 Complete"})

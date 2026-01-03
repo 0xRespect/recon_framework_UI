@@ -1,5 +1,5 @@
 import os
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.sql import func
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
@@ -48,14 +48,6 @@ class Vulnerability(Base):
     description = Column(String, nullable=True)
     discovered_at = Column(DateTime(timezone=True), server_default=func.now())
 
-# Database Setup
-# Use DATABASE_URL from env, default to SQLite for backward compat
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./recon.db")
-
-# Async Engine
-# echo=False for production/performance
-engine = create_async_engine(DATABASE_URL, echo=False)
-
 class FuzzingResult(Base):
     """
     Model representing a directory/file discovered via FFUF.
@@ -69,6 +61,25 @@ class FuzzingResult(Base):
     content_length = Column(Integer)
     preset_used = Column(String, nullable=True)
     discovered_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Configuration(Base):
+    """
+    Dynamic Configuration Store.
+    Key Examples: "global:phase:subdomain", "tool:subfinder:flags"
+    """
+    __tablename__ = 'configurations'
+
+    key = Column(String, primary_key=True, index=True)
+    value = Column(Text, nullable=False) # JSON encoded string
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+# Database Setup
+# Use DATABASE_URL from env, default to SQLite for backward compat
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./recon.db")
+
+# Async Engine
+# echo=False for production/performance
+engine = create_async_engine(DATABASE_URL, echo=False)
 
 # Async Session Factory
 AsyncSessionLocal = sessionmaker(

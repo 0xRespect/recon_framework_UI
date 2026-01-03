@@ -22,11 +22,14 @@ class SubfinderProvider(BaseProvider):
         """
         Streams subfinder output line by line.
         """
-        # Construct command
-        # subfinder -d domain -silent
-        # Extra config can be added here
+        # subfinder -d domain [dynamic flags]
         
-        cmd_list = ["subfinder", "-d", target, "-silent"]
+        flags = await self.get_config("tool:subfinder:flags", ["-silent", "-all"])
+        # Ensure list
+        if not isinstance(flags, list):
+             flags = str(flags).split()
+             
+        cmd_list = ["subfinder", "-d", target] + flags
         command = shlex.join(cmd_list)
         
         yield {"type": "log", "data": f"[*] Starting Subfinder for {target}..."}

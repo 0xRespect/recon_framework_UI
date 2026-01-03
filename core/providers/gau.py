@@ -15,14 +15,11 @@ class GauProvider(BaseProvider):
         # We can add --subs if needed, but usually we feed it a single domain.
         
         # Check config for threads/options
-        threads = config.get("settings", {}).get("threads", 10)
         
-        # Construct command
-        # gau --json logic might improve parsing, but gau output is just URLs usually.
-        # Let's use --json to be safe if available, or just raw.
-        # gau default is raw URLs. wrapper is simpler if we expect URLs.
+        default_flags = ["--threads", "10"]
+        extra_flags = await self.get_config("tool:gau:flags", default_flags)
         
-        cmd = ["gau", target, "--threads", str(threads)]
+        cmd = ["gau", target] + extra_flags
         
         # Include subs if configured?
         # cmd.append("--subs") 

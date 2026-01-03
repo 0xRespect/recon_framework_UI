@@ -29,9 +29,14 @@ class HTTPXProvider(BaseProvider):
         # construct command
         # httpx -l targets.txt -json -title -tech-detect -status-code
         
-        extra_flags = ["-json", "-title", "-tech-detect", "-status-code", "-silent"]
+        # httpx -l targets.txt [dynamic flags]
         
-        # Performance Config
+        extra_flags = await self.get_config("tool:httpx:flags", ["-json", "-title", "-tech-detect", "-status-code", "-silent"])
+        if not isinstance(extra_flags, list):
+             extra_flags = str(extra_flags).split()
+        
+        # Performance Config (Legacy or DB?)
+        # Let's keep using the passed 'config' dict for timeout/threads as that might be per-scan
         threads = config.get("httpx", {}).get("threads", 50)
         extra_flags.extend(["-threads", str(threads)])
         

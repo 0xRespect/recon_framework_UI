@@ -18,11 +18,8 @@ class KatanaProvider(BaseProvider):
     async def stream_output(self, target: str, config: Dict[str, Any], scan_id: str = None) -> AsyncGenerator[Dict[str, Any], None]:
         # katana -u target -j -jc ...
         
-        extra_flags = ["-j", "-jc", "-silent", "-d", "3"] # default depth 3
-        
-        # Config Overrides
-        # threads = config.get("katana", {}).get("threads", 10)
-        # extra_flags.extend(["-c", str(threads)])
+        default_flags = ["-j", "-jc", "-silent", "-d", "3"]
+        extra_flags = await self.get_config("tool:katana:flags", default_flags)
         
         cmd_list = ["stdbuf", "-oL", "katana", "-u", target] + extra_flags
         command = shlex.join(cmd_list)

@@ -37,3 +37,9 @@ class BaseProvider(abc.ABC):
             stderr=asyncio.subprocess.PIPE
         )
         return process
+
+    async def get_config(self, key: str, default=None) -> Any:
+        # ... logic ...
+        from core.repositories.sqlalchemy_repo import SqlAlchemyRepository
+        repo = SqlAlchemyRepository()
+        return await repo.get_config_value(key, default)
