@@ -9,3 +9,8 @@ greenlet
 websockets
 jinja2
 uro
+celery
+redis
+asyncpg
+psycopg2-binary
+protobuf # needed for some grpc logs if any, or just strictly

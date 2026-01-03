@@ -128,6 +128,19 @@ async def run_quick_scan_background(domain: str, scan_id: str):
 @app.on_event("startup")
 async def on_startup():
     await init_db()
+    # Start Redis Listener background task
+    asyncio.create_task(listen_to_redis())
+
+async def listen_to_redis():
+    """Reads messages from Redis and broadcasts to WebSockets."""
+    from core.event_bus import event_bus
+    await event_bus.subscribe("recon:updates")
+    try:
+        async for message in event_bus.listen():
+            # message is Dict
+            await manager.broadcast(message)
+    except Exception as e:
+        print(f"Redis Listener Error: {e}")
 
 # --- Endpoints ---
 
@@ -149,15 +162,25 @@ async def start_fuzzing(target_url: str, preset: str, background_tasks: Backgrou
 @app.post("/scan/{domain}")
 async def start_scan(domain: str, background_tasks: BackgroundTasks, scan_type: str = "full"):
     scan_id = str(uuid.uuid4())
+    config = load_config()
+    config['root_domain'] = domain
     
-    if scan_type == "quick":
-        background_tasks.add_task(run_quick_scan_background, domain, scan_id)
-        mode_msg = "Quick Scan"
-    else:
-        background_tasks.add_task(run_scan_background, domain, scan_id)
-        mode_msg = "Full Scan"
-        
-    return {"message": f"{mode_msg} started", "domain": domain, "scan_id": scan_id}
+    # In Phase 2, we just trigger the first task. 
+    # The Event-Driven logic (Subdomain -> Host) will be handled by the Worker/Orchestrator reacting to events later.
+    # For now, let's explicitly trigger Phase 1 (Subfinder) via Celery as a starting point.
+    
+    from core.tasks import task_run_provider
+    
+    # Dispatch Subfinder Task
+    task_run_provider.delay("Subfinder", domain, config, scan_id)
+    task_run_provider.delay("Assetfinder", domain, config, scan_id)
+    task_run_provider.delay("Findomain", domain, config, scan_id) # if available
+    
+    # Also trigger HTTPX directly? No, event driven logic comes next.
+    # But user wants to see it working now.
+    # Let's start with Subdomain Enum which is Phase 1.
+    
+    return {"message": f"Distributed Scan started for {domain}", "scan_id": scan_id}
 
 @app.post("/cancel-scan/{scan_id}")
 async def cancel_scan(scan_id: str):

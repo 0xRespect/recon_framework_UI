@@ -751,17 +751,23 @@
 
                 socket.onmessage = function (event) {
                     const data = JSON.parse(event.data);
+
                     if (data.type === 'log') {
+                        // Support both data and message fields
+                        const msg = data.data || data.message || "";
+
                         // Filter or Colorize
                         let color = "text-gray-300";
-                        if (data.message.includes('[!]')) color = "text-red-400";
-                        if (data.message.includes('[+]')) color = "text-green-400";
-                        if (data.message.includes('[*]')) color = "text-blue-400";
-                        if (data.message.includes('[ALIVE]')) color = "text-green-500 font-bold";
+                        if (msg.includes('[!]')) color = "text-red-400";
+                        if (msg.includes('[+]')) color = "text-green-400";
+                        if (msg.includes('[*]')) color = "text-blue-400";
+                        if (msg.includes('[ALIVE]')) color = "text-green-500 font-bold";
+                        if (msg.includes('[Katana]')) color = "text-purple-400";
 
-                        appendLog(data.message, color);
-                    } else if (data.type === 'raw') {
-                        appendRawLog(data.message);
+                        appendLog(msg, color);
+                    } else if (data.type === 'raw' || data.type === 'terminal') {
+                        const msg = data.data || data.message || "";
+                        appendRawLog(msg);
                     } else if (data.type === 'subdomain') {
                         // Optional: Update stats in real-time?
                     } else if (data.type === 'crawl') {

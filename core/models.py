@@ -49,12 +49,12 @@ class Vulnerability(Base):
     discovered_at = Column(DateTime(timezone=True), server_default=func.now())
 
 # Database Setup
-# Using SQLite with aiosqlite driver for async support
-DB_NAME = 'recon.db'
-db_path = f"sqlite+aiosqlite:///{DB_NAME}"
+# Use DATABASE_URL from env, default to SQLite for backward compat
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite+aiosqlite:///./recon.db")
 
 # Async Engine
-engine = create_async_engine(db_path, echo=False)
+# echo=False for production/performance
+engine = create_async_engine(DATABASE_URL, echo=False)
 
 class FuzzingResult(Base):
     """

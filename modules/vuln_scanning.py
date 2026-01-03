@@ -627,15 +627,8 @@ async def run_open_redirect_scan(urls: List[str], domain: str, config: dict, bro
         # Stream it
         await stream_output(process)
         await process.wait()
-                # No more processing here, logic moved to stream_output helper
-                pass
-                
-        # End of scan
         if broadcast_callback:
             await broadcast_callback({"type": "log", "message": "[OR] Open Redirect Scan Complete."})
-        pass
-                    
-        await process.wait()
 
     # Run check
     await check_payload("http://google.com")
