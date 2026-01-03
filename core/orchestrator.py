@@ -319,20 +319,32 @@ async def run_vuln_scanning_phase(domain, config, broadcast_callback=None, scan_
     if broadcast_callback:
         await broadcast_callback({"type": "status", "message": "Starting Phase 5: Vulnerability Scanning"})
         
-    # Collect Targets via Repo
-    subdomains = await repo.get_alive_subdomains(domain)
+    # Determine Target Scope
+    scope = await repo.get_config_value("tool:nuclei:scope", "all")
+    custom_target = await repo.get_config_value("tool:nuclei:target_single", "")
     
-    contacts = set() # All potential URL endpoints
-    for sub in subdomains:
-        contacts.add(f"http://{sub}")
-        contacts.add(f"https://{sub}")
-        
-    # Crawled URLs via Repo
-    crawled = await repo.get_crawled_urls(domain)
-    for url in crawled:
-        contacts.add(url)
-        
-    target_list = list(contacts)
+    target_list = []
+    
+    if scope == "single" and custom_target:
+        logger.info(f"Target Scope: Single ({custom_target})")
+        target_list = [custom_target.strip()]
+        if broadcast_callback:
+             await broadcast_callback({"type": "log", "message": f"Target Scope Restricted to: {custom_target}"})
+    else:
+        logger.info(f"Target Scope: All Discovered")
+        # Collect Targets via Repo
+        subdomains = await repo.get_alive_subdomains(domain)
+        contacts = set() 
+        for sub in subdomains:
+            contacts.add(f"http://{sub}")
+            contacts.add(f"https://{sub}")
+            
+        # Crawled URLs via Repo
+        crawled = await repo.get_crawled_urls(domain)
+        for url in crawled:
+            contacts.add(url)
+            
+        target_list = list(contacts)
         
     # 1. Nuclei (General)
     if await repo.get_config_value("phase:scan:nuclei", True):

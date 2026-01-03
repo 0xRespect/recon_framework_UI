@@ -415,7 +415,154 @@
             <div id="view-scanner" class="content-view hidden space-y-6">
                 <h2 class="text-2xl font-bold text-white mb-6">Vulnerability Scanner Modules</h2>
 
+                <!-- Global Automation Configuration -->
+                <div class="bg-gray-800 rounded-xl border border-gray-700 p-6 mb-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h4 class="text-lg font-bold text-white flex items-center">
+                            <i data-lucide="settings-2" class="w-5 h-5 mr-3 text-blue-400"></i> Automated Pipeline
+                            Configuration
+                        </h4>
+                        <button onclick="saveSettings()"
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors text-sm font-bold">
+                            <i data-lucide="save" class="w-4 h-4 mr-2"></i> Save Changes
+                        </button>
+                    </div>
+
+                    <!-- Module Toggles -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                        <label
+                            class="flex items-center p-3 bg-gray-900/50 rounded-lg border border-gray-700 cursor-pointer hover:border-red-500 transition-colors">
+                            <input type="checkbox" id="scan-nuclei"
+                                class="w-5 h-5 text-red-500 rounded bg-gray-800 border-gray-600">
+                            <div class="ml-3">
+                                <span class="block text-sm font-bold text-white">Nuclei Templates</span>
+                                <span class="block text-xs text-gray-500">General Vulns</span>
+                            </div>
+                        </label>
+                        <label
+                            class="flex items-center p-3 bg-gray-900/50 rounded-lg border border-gray-700 cursor-pointer hover:border-red-500 transition-colors">
+                            <input type="checkbox" id="scan-xss"
+                                class="w-5 h-5 text-red-500 rounded bg-gray-800 border-gray-600">
+                            <div class="ml-3">
+                                <span class="block text-sm font-bold text-white">XSS Scanner</span>
+                                <span class="block text-xs text-gray-500">Gxss + Dalfox</span>
+                            </div>
+                        </label>
+                        <label
+                            class="flex items-center p-3 bg-gray-900/50 rounded-lg border border-gray-700 cursor-pointer hover:border-red-500 transition-colors">
+                            <input type="checkbox" id="scan-sqli"
+                                class="w-5 h-5 text-red-500 rounded bg-gray-800 border-gray-600">
+                            <div class="ml-3">
+                                <span class="block text-sm font-bold text-white">SQLi Scanner</span>
+                                <span class="block text-xs text-gray-500">Error-based + SQLMap</span>
+                            </div>
+                        </label>
+                        <label
+                            class="flex items-center p-3 bg-gray-900/50 rounded-lg border border-gray-700 cursor-pointer hover:border-red-500 transition-colors">
+                            <input type="checkbox" id="scan-redirect"
+                                class="w-5 h-5 text-red-500 rounded bg-gray-800 border-gray-600">
+                            <div class="ml-3">
+                                <span class="block text-sm font-bold text-white">Open Redirect</span>
+                                <span class="block text-xs text-gray-500">Payload Fuzzing</span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- Nuclei Scope Card -->
+                    <div class="bg-gray-900/30 p-4 rounded-lg border border-gray-700">
+                        <div class="flex justify-between items-center mb-4">
+                            <h5 class="font-bold text-white text-md flex items-center">
+                                <i data-lucide="crosshair" class="w-4 h-4 mr-2 text-yellow-500"></i> Nuclei Target Scope
+                            </h5>
+                            <span
+                                class="text-xs font-mono text-gray-500 bg-gray-800 px-2 py-1 rounded">tool:nuclei:scope</span>
+                        </div>
+                        <div class="space-y-4">
+                            <div class="flex space-x-6">
+                                <label class="flex items-center cursor-pointer">
+                                    <input type="radio" name="nuclei_scope" value="all"
+                                        class="form-radio text-yellow-500 bg-gray-800 border-gray-600 focus:ring-yellow-500">
+                                    <div class="ml-2">
+                                        <span class="block text-sm text-white">Scan All Discovered</span>
+                                        <span class="block text-xs text-gray-500">Uses recon data (url.txt)</span>
+                                    </div>
+                                </label>
+                                <label class="flex items-center cursor-pointer">
+                                    <input type="radio" name="nuclei_scope" value="single"
+                                        class="form-radio text-yellow-500 bg-gray-800 border-gray-600 focus:ring-yellow-500">
+                                    <div class="ml-2">
+                                        <span class="block text-sm text-white">Specific URL</span>
+                                        <span class="block text-xs text-gray-500">Overrides target list</span>
+                                    </div>
+                                </label>
+                            </div>
+
+                            <div id="nuclei-single-input-container" class="hidden animate-fade-in-down">
+                                <div class="relative">
+                                    <span
+                                        class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 text-sm">
+                                        <i data-lucide="link" class="w-4 h-4"></i>
+                                    </span>
+                                    <input type="text" id="nuclei-custom-target"
+                                        class="w-full bg-gray-800 border border-gray-600 text-white text-sm rounded-lg pl-10 p-2.5 focus:ring-yellow-500 focus:border-yellow-500 font-mono"
+                                        placeholder="https://example.com/vulnerable-path">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Manual Nuclei Module -->
+                    <div
+                        class="bg-gray-800 rounded-xl border border-gray-700 p-6 flex flex-col hover:border-yellow-500/30 transition-colors shadow-lg">
+                        <div class="flex items-center gap-3 mb-4">
+                            <div class="p-3 bg-yellow-900/30 rounded-lg text-yellow-500 ring-1 ring-yellow-500/20">
+                                <i data-lucide="scan" class="w-6 h-6"></i>
+                            </div>
+                            <h3 class="text-xl font-bold text-white">Nuclei Scan</h3>
+                        </div>
+                        <p class="text-gray-400 text-sm mb-6 h-10">Run custom template scans on specific targets or full
+                            project scope.</p>
+
+                        <!-- Mode Selection -->
+                        <div class="space-y-3 mb-4 bg-gray-900/50 p-3 rounded-lg border border-gray-700/50">
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="manual-nuclei-mode" value="single" checked
+                                    class="form-radio text-yellow-500 bg-gray-800 border-gray-600 focus:ring-yellow-500"
+                                    onchange="toggleManualNucleiMode()">
+                                <span class="ml-2 text-sm text-gray-300">Specific URL</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="manual-nuclei-mode" value="project"
+                                    class="form-radio text-yellow-500 bg-gray-800 border-gray-600 focus:ring-yellow-500"
+                                    onchange="toggleManualNucleiMode()">
+                                <span class="ml-2 text-sm text-gray-300">Project Scope (url.txt)</span>
+                            </label>
+                        </div>
+
+                        <!-- Single Target Input -->
+                        <div id="manual-nuclei-single-div">
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Target URL</label>
+                            <input type="text" id="manual-nuclei-input"
+                                class="w-full bg-gray-900 border border-gray-600 text-white rounded p-2 mb-4 focus:ring-1 focus:ring-yellow-500 outline-none font-mono text-sm"
+                                placeholder="https://example.com/login.php">
+                        </div>
+
+                        <!-- Project Dropdown -->
+                        <div id="manual-nuclei-project-div" class="hidden">
+                            <label class="block text-xs font-bold text-gray-500 uppercase mb-2">Select Project</label>
+                            <select id="manual-nuclei-project-select"
+                                class="w-full bg-gray-900 border border-gray-600 text-white rounded p-2 mb-4 focus:ring-1 focus:ring-yellow-500 outline-none">
+                            </select>
+                        </div>
+
+                        <button type="button" onclick="startManualNucleiScan(event)"
+                            class="mt-auto w-full py-2.5 bg-gradient-to-r from-yellow-700 to-yellow-600 hover:from-yellow-600 hover:to-yellow-500 text-white font-bold rounded-lg shadow-lg shadow-yellow-900/20 transition-all transform hover:scale-[1.02]">
+                            Start Nuclei Scan
+                        </button>
+                    </div>
+
                     <!-- SQLi Module -->
                     <div class="bg-gray-800 rounded-xl border border-gray-700 p-6 flex flex-col">
                         <div class="flex items-center gap-3 mb-4">
@@ -915,52 +1062,7 @@
                             </div>
                         </div>
 
-                        <!-- Advanced Vuln Modules -->
-                        <div class="mt-8 border-t border-gray-700 pt-6">
-                            <h4 class="text-lg font-bold text-white mb-4 flex items-center">
-                                <i data-lucide="bomb" class="w-5 h-5 mr-2 text-red-500"></i> Vulnerability Modules
-                            </h4>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <label
-                                    class="flex items-center p-3 bg-gray-900 rounded-lg border border-gray-700 cursor-pointer hover:border-red-500 transition-colors">
-                                    <input type="checkbox" id="scan-nuclei"
-                                        class="w-5 h-5 text-red-500 rounded bg-gray-800 border-gray-600">
-                                    <div class="ml-3">
-                                        <span class="block text-sm font-bold text-white">Nuclei Templates</span>
-                                        <span class="block text-xs text-gray-500">General Vulnerability Scanning</span>
-                                    </div>
-                                </label>
-                                <label
-                                    class="flex items-center p-3 bg-gray-900 rounded-lg border border-gray-700 cursor-pointer hover:border-red-500 transition-colors">
-                                    <input type="checkbox" id="scan-xss"
-                                        class="w-5 h-5 text-red-500 rounded bg-gray-800 border-gray-600">
-                                    <div class="ml-3">
-                                        <span class="block text-sm font-bold text-white">XSS Scanner</span>
-                                        <span class="block text-xs text-gray-500">Advanced Pipeline (Gxss +
-                                            Dalfox)</span>
-                                    </div>
-                                </label>
-                                <label
-                                    class="flex items-center p-3 bg-gray-900 rounded-lg border border-gray-700 cursor-pointer hover:border-red-500 transition-colors">
-                                    <input type="checkbox" id="scan-sqli"
-                                        class="w-5 h-5 text-red-500 rounded bg-gray-800 border-gray-600">
-                                    <div class="ml-3">
-                                        <span class="block text-sm font-bold text-white">SQLi Scanner</span>
-                                        <span class="block text-xs text-gray-500">Error-based + SQLMap
-                                            Verification</span>
-                                    </div>
-                                </label>
-                                <label
-                                    class="flex items-center p-3 bg-gray-900 rounded-lg border border-gray-700 cursor-pointer hover:border-red-500 transition-colors">
-                                    <input type="checkbox" id="scan-redirect"
-                                        class="w-5 h-5 text-red-500 rounded bg-gray-800 border-gray-600">
-                                    <div class="ml-3">
-                                        <span class="block text-sm font-bold text-white">Open Redirect</span>
-                                        <span class="block text-xs text-gray-500">Payload Fuzzing + HTTPX</span>
-                                    </div>
-                                </label>
-                            </div>
-                        </div>
+
                     </div>
                 </div>
             </div>
@@ -1132,8 +1234,11 @@
                 document.getElementById('page-title').textContent = tabId.charAt(0).toUpperCase() + tabId.slice(1);
 
                 if (tabId === 'targets') fetchTargets();
-                if (tabId === 'scanner') fetchTargets(); // Ensure dropdowns are populated
                 if (tabId === 'settings') loadSettings();
+                if (tabId === 'scanner') {
+                    fetchTargets();
+                    loadSettings();
+                }
                 if (tabId === 'inventory') {
                     if (currentDomain) {
                         showInventoryDetail();
@@ -1533,6 +1638,18 @@
                         }
                     });
 
+                    // Populate Manual Nuclei Dropdown
+                    const nucleiSelect = document.getElementById('manual-nuclei-project-select');
+                    if (nucleiSelect) {
+                        nucleiSelect.innerHTML = '<option value="" disabled selected>Select a project...</option>';
+                        data.targets.forEach(t => {
+                            const opt = document.createElement('option');
+                            opt.value = t;
+                            opt.textContent = t;
+                            nucleiSelect.appendChild(opt);
+                        });
+                    }
+
                     lucide.createIcons(); // Refresh icons
                 } catch (e) {
                     console.error("Failed to fetch targets", e);
@@ -1579,6 +1696,65 @@
                     console.error('Delete error:', e);
                     alert(`❌ Failed to delete target: ${e.message}\n\nPlease try again or check the console for details.`);
                     fetchTargets(); // Refresh to restore button state
+                }
+            }
+
+            // --- Nuclei Manual Scan Logic ---
+            function toggleManualNucleiMode() {
+                const mode = document.querySelector('input[name="manual-nuclei-mode"]:checked').value;
+                if (mode === 'single') {
+                    document.getElementById('manual-nuclei-single-div').classList.remove('hidden');
+                    document.getElementById('manual-nuclei-project-div').classList.add('hidden');
+                } else {
+                    document.getElementById('manual-nuclei-single-div').classList.add('hidden');
+                    document.getElementById('manual-nuclei-project-div').classList.remove('hidden');
+                }
+            }
+
+            async function startManualNucleiScan(event) {
+                const btn = event.target;
+                const mode = document.querySelector('input[name="manual-nuclei-mode"]:checked').value;
+                let target = "";
+
+                if (mode === 'single') {
+                    target = document.getElementById('manual-nuclei-input').value.trim();
+                    if (!target) {
+                        toast("Please enter a target URL", "error");
+                        return;
+                    }
+                } else {
+                    target = document.getElementById('manual-nuclei-project-select').value;
+                    if (!target) {
+                        toast("Please select a project", "error");
+                        return;
+                    }
+                }
+
+                // UI Feedback
+                const originalText = btn.innerText;
+                btn.disabled = true;
+                btn.innerHTML = '<i data-lucide="loader" class="animate-spin inline w-4 h-4 mr-2"></i> Starting...';
+                lucide.createIcons();
+
+                try {
+                    const res = await fetch(`/scan/nuclei?target_type=${encodeURIComponent(mode)}&target=${encodeURIComponent(target)}`, { method: 'POST' });
+                    const data = await res.json();
+
+                    if (data.scan_id) {
+                        toast("Nuclei Scan Started!", "success");
+                        appendLog(`[Started] Nuclei Scan on ${target} (${mode})`, "text-green-400");
+                        showTab('live');
+                    } else {
+                        toast("Failed to start scan", "error");
+                    }
+                } catch (e) {
+                    console.error(e);
+                    toast("Error starting scan", "error");
+                } finally {
+                    setTimeout(() => {
+                        btn.disabled = false;
+                        btn.innerHTML = originalText;
+                    }, 2000);
                 }
             }
 
@@ -1773,6 +1949,20 @@
             }
 
             // --- Settings Logic ---
+            function toggleNucleiInput() {
+                const scope = document.querySelector('input[name="nuclei_scope"]:checked').value;
+                const inputDiv = document.getElementById('nuclei-single-input-container');
+                if (scope === 'single') {
+                    inputDiv.classList.remove('hidden');
+                } else {
+                    inputDiv.classList.add('hidden');
+                }
+            }
+            // Listeners
+            document.querySelectorAll('input[name="nuclei_scope"]').forEach(radio => {
+                radio.addEventListener('change', toggleNucleiInput);
+            });
+
             async function loadSettings() {
                 try {
                     const res = await fetch('/api/settings');
@@ -1789,6 +1979,14 @@
                     document.getElementById('scan-xss').checked = settings["phase:scan:xss"] === true;
                     document.getElementById('scan-sqli').checked = settings["phase:scan:sqli"] === true;
                     document.getElementById('scan-redirect').checked = settings["phase:scan:redirect"] === true;
+
+                    // Nuclei Scope
+                    const scope = settings["tool:nuclei:scope"] || "all";
+                    document.querySelector(`input[name="nuclei_scope"][value="${scope}"]`).checked = true;
+                    if (settings["tool:nuclei:target_single"]) {
+                        document.getElementById('nuclei-custom-target').value = settings["tool:nuclei:target_single"];
+                    }
+                    toggleNucleiInput(); // Init UI state
 
                     // Tools Helper
                     const setFlags = (tool, key) => {
@@ -1836,6 +2034,10 @@
                 settings["phase:scan:xss"] = document.getElementById('scan-xss').checked;
                 settings["phase:scan:sqli"] = document.getElementById('scan-sqli').checked;
                 settings["phase:scan:redirect"] = document.getElementById('scan-redirect').checked;
+
+                // Nuclei Scope
+                settings["tool:nuclei:scope"] = document.querySelector('input[name="nuclei_scope"]:checked').value;
+                settings["tool:nuclei:target_single"] = document.getElementById('nuclei-custom-target').value.trim();
 
                 // Tools Helper
                 const getFlags = (tool) => {

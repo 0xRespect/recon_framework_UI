@@ -20,6 +20,8 @@ from modules.fuzzing import run_ffuf
 from core.models import Subdomain, CrawledURL, Vulnerability, init_db, AsyncSessionLocal
 from core.db_manager import get_async_session
 from core.scan_registry import registry
+from modules.vuln_scanning import run_nuclei
+from core.repositories.sqlalchemy_repo import SqlAlchemyRepository
 
 app = FastAPI(title="Recon Framework Real-time API", version="1.0")
 templates = Jinja2Templates(directory="templates")
@@ -159,6 +161,57 @@ async def start_fuzzing(target_url: str, preset: str, background_tasks: Backgrou
     background_tasks.add_task(run_ffuf, target_url, preset, broadcast_wrapper, scan_id, custom_wordlist)
     return {"message": "Fuzzing started", "target": target_url, "preset": preset, "scan_id": scan_id}
 
+@app.post("/scan/nuclei")
+async def start_nuclei_manual(
+    target_type: str, # "single" or "project"
+    target: str,      # URL or Domain
+    background_tasks: BackgroundTasks
+):
+    scan_id = str(uuid.uuid4())
+    config = load_config()
+    
+    # Wrapper for async task
+    async def _nuclei_task(ctx_target_type, ctx_target, ctx_scan_id, ctx_config):
+        repo = SqlAlchemyRepository()
+        target_list = []
+        domain_context = "manual_scan"
+        
+        try:
+            if ctx_target_type == "project":
+                domain_context = ctx_target
+                # Fetch targets from existing recon
+                subs = await repo.get_alive_subdomains(ctx_target)
+                urls = await repo.get_crawled_urls(ctx_target)
+                target_list.extend([f"http://{s}" for s in subs] + [f"https://{s}" for s in subs])
+                target_list.extend(urls)
+                target_list = list(set(target_list))
+                
+                if not target_list:
+                    await broadcast_wrapper({"type": "error", "message": f"No targets found for project {ctx_target}"})
+                    return
+            else:
+               # Single Target
+               target_list = [ctx_target]
+               # Try to extract hostname for context
+               try:
+                   from urllib.parse import urlparse
+                   parsed = urlparse(ctx_target)
+                   if parsed.netloc:
+                       domain_context = parsed.netloc
+                   else:
+                       domain_context = ctx_target
+               except:
+                   pass
+                   
+            await broadcast_wrapper({"type": "status", "message": f"Starting Manual Nuclei Scan on {len(target_list)} targets ({domain_context})..."})
+            await run_nuclei(target_list, domain_context, ctx_config, broadcast_wrapper, ctx_scan_id)
+            
+        except Exception as e:
+            await broadcast_wrapper({"type": "error", "message": f"Manual Nuclei Scan Failed: {str(e)}"})
+
+    background_tasks.add_task(_nuclei_task, target_type, target, scan_id, config)
+    return {"message": "Nuclei Scan Started", "scan_id": scan_id}
+
 @app.post("/scan/{domain}")
 async def start_scan(domain: str, background_tasks: BackgroundTasks, scan_type: str = "full"):
     scan_id = str(uuid.uuid4())
@@ -238,7 +291,9 @@ async def get_settings(db: AsyncSessionLocal = Depends(get_async_session)):
             "phase:scan:nuclei": True,
             "phase:scan:xss": False,
             "phase:scan:sqli": False,
-            "phase:scan:redirect": False
+            "phase:scan:redirect": False,
+            "tool:nuclei:scope": "all",
+            "tool:nuclei:target_single": ""
         }
         
         # Merge defaults
