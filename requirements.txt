@@ -13,4 +13,5 @@ celery
 redis
 asyncpg
 psycopg2-binary
-protobuf # needed for some grpc logs if any, or just strictly
+protobuf
+loguru

@@ -2,6 +2,7 @@ from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.future import select
+from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from core.models import Subdomain, CrawledURL, Vulnerability
 from .base import IRepository
@@ -114,3 +115,44 @@ class SqlAlchemyRepository(IRepository):
             except:
                 await session.rollback()
                 return False
+
+    async def get_dashboard_stats(self):
+        async with self.session_factory() as session:
+            # Total Targets (Unique Target Domains)
+            # Actually dashboard might want total subdomains found across all targets?
+            # Or distinct target domains? 
+            # "Total Targets" usually implies root domains.
+            # "Total Assets" implies subdomains.
+            
+            # Let's return Total Subdomains, Alive, URLs, Vulns.
+            
+            # Subdomains
+            q_subs = select(func.count(Subdomain.id))
+            total_subs = (await session.execute(q_subs)).scalar()
+            
+            # Alive
+            q_alive = select(func.count(Subdomain.id)).filter_by(is_alive=True)
+            alive_hosts = (await session.execute(q_alive)).scalar()
+            
+            # URLs
+            q_urls = select(func.count(CrawledURL.id))
+            total_urls = (await session.execute(q_urls)).scalar()
+            
+            # Vulns by Severity
+            q_vulns = select(Vulnerability.severity, func.count(Vulnerability.id)).group_by(Vulnerability.severity)
+            vuln_rows = (await session.execute(q_vulns)).all()
+            
+            vulns_map = {"critical": 0, "high": 0, "medium": 0, "low": 0, "info": 0}
+            for severity, count in vuln_rows:
+                if severity and severity.lower() in vulns_map:
+                    vulns_map[severity.lower()] = count
+                else:
+                    # handle unknown or unmapped
+                    pass
+            
+            return {
+                "total_subdomains": total_subs or 0,
+                "alive_hosts": alive_hosts or 0,
+                "crawled_urls": total_urls or 0,
+                "vulns_by_severity": vulns_map
+            }

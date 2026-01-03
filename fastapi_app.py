@@ -273,6 +273,25 @@ async def get_wordlists():
     except Exception as e:
         return {"error": str(e), "wordlists": []}
 
+@app.get("/api/stats")
+async def get_dashboard_stats():
+    """Returns aggregated stats for the dashboard."""
+    from core.repositories.sqlalchemy_repo import SqlAlchemyRepository
+    repo = SqlAlchemyRepository()
+    return await repo.get_dashboard_stats()
+
+@app.get("/api/status/tasks")
+async def get_worker_status():
+    """Returns active tasks from Celery workers."""
+    from core.celery_config import celery_app
+    try:
+        # inspect() is synchronous, run in thread
+        i = celery_app.control.inspect()
+        active = await asyncio.to_thread(i.active)
+        return active or {}
+    except Exception as e:
+        return {"error": str(e)}
+
 @app.get("/api/inventory/stats")
 async def get_inventory_stats(db: AsyncSessionLocal = Depends(get_async_session)):
     from sqlalchemy.future import select

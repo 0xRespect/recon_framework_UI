@@ -4,12 +4,21 @@
 
 import sys
 import os
+from typing import List, Dict, Any, Callable
 import asyncio
 from rich.console import Console
+from urllib.parse import urlparse
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from core.task_manager import run_tasks_in_parallel
+from core.rate_limiter import rate_limiter
+from loguru import logger
+import sys
+
+# Configure logger (optional customization)
+logger.remove()
+logger.add(sys.stderr, format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>")
 # Legacy imports (to be phased out)
 from modules.content_discovery import run_katana, run_gau
 from modules.vuln_scanning import run_nuclei
@@ -18,16 +27,26 @@ from modules.vuln_scanning import run_nuclei
 from core.registry import registry
 from core.repositories.sqlalchemy_repo import SqlAlchemyRepository
 
+# Auto-discover providers on module load
+registry.auto_discover()
+
 console = Console()
 
 # Global Repository (Stateless Factory) REMOVED
 # Each async context will create its own repo instance to ensure thread/loop safety with asyncpg.
 
-async def run_provider_wrapper(target, config, provider_name, broadcast_callback=None, scan_id=None):
+async def run_provider_wrapper(target: str, config: Dict[str, Any], provider_name: str, broadcast_callback: Callable = None, scan_id: str = None):
     """
-    Adapter to run a Provider via the generic task manager.
-    Handles streaming output, DB persistence via Repository, and WebSocket broadcasting.
+    Generic wrapper to run a provider, handle broadcasting, and persistence.
     """
+    # Factory Logic via Registry
+    try:
+        # registry.get_provider returns an INSTANCE
+        provider = registry.get_provider(provider_name)
+    except ValueError:
+        print(f"[Orchestrator] Unknown provider: {provider_name}")
+        return
+
     # Instantiate Repo per task execution to ensure correct event loop binding
     repo = SqlAlchemyRepository()
     
@@ -40,92 +59,62 @@ async def run_provider_wrapper(target, config, provider_name, broadcast_callback
             if parsed.hostname:
                 db_target_domain = parsed.hostname
     
-    print(f"[DEBUG] run_provider_wrapper called for {provider_name} on {target}")
+                db_target_domain = parsed.hostname
     
-    provider = registry.get_provider(provider_name)
-    if not provider:
-        console.print(f"[!] Provider {provider_name} not found in registry.")
-        print(f"[DEBUG] Provider {provider_name} NOT FOUND in registry keys: {list(registry._providers.keys())}")
-        return []
+    logger.debug(f"run_provider_wrapper called for {provider_name} on {target}")
 
-    print(f"[DEBUG] Found provider: {provider}")
+    # Rate Limiting
+    # Limit concurrent tools per target domain (e.g. 5)
+    await rate_limiter.acquire(f"target:{db_target_domain}", limit=5)
     
-    results = []
-    # Determine the type of data this provider returns based on name/phase? 
-    # Or strict typing? For now, we infer.
-    
-    async for item in provider.stream_output(target, config, scan_id):
-        if item["type"] == "log":
-            if broadcast_callback:
-                await broadcast_callback(item) # {"type": "log", ...}
-            # Also print to console?
-            # console.print(item["data"]) 
-
-        elif item["type"] == "result":
-            # Persist Result
-            data = item["data"]
-            results.append(data)
-            
-            # Broadcast result so tasks/frontend can see it
-            if broadcast_callback:
-                await broadcast_callback(item)
-            
-            # Logic specific to Phase 1 (Subdomains)
-            if provider_name in ["Subfinder", "Assetfinder", "Findomain"]:
-                # data is subdomain string
-                subdomain = data
-                is_new = await repo.add_subdomain(target, subdomain, provider_name)
-                # We already broadcasted the raw item above, but we might want to send a specific "subdomain" event 
-                # or just rely on the new "result" event. 
-                # Existing tasks.py logic listens for "subdomain" type with "is_new".
-                
-                # Let's keep the specific event for backward compatibility / clarity
-                if is_new and broadcast_callback:
-                    await broadcast_callback({
-                        "type": "subdomain",
-                        "domain": target,
-                        "subdomain": subdomain,
-                        "tool": provider_name,
-                        "is_new": True
-                    })
-            
-            # Logic for Phase 2 (HTTPX)
-            elif provider_name == "HTTPX":
-                # data is Dict
-                url = data.get("url")
-                # status = data.get("status_code")
+    async for event in provider.run(target, config):
+        # Persistence Logic
+        if event.get("type") == "subdomain":
+            sub = event["data"].get("subdomain")
+            if sub:
+                is_new = await repo.add_subdomain(sub, db_target_domain, provider_name)
+                event["is_new"] = is_new
+        
+        elif event.get("type") == "result":
+            # For HTTPX -> Live Host
+            if provider_name.lower() == "httpx":
+                url = event["data"].get("url")
                 if url:
-                    # Update is_alive in Subdomains? Or update CrawledURL?
-                    # HTTPX usually confirms subdomain is alive.
-                    # We can store in Subdomain table if it matches.
-                    # Parse hostname from url
-                    await repo.update_subdomain_alive(url, is_alive=True)
-                    # We might also want to store it as a crawled URL or just Alive Host?
+                   await repo.update_subdomain_alive(url, db_target_domain)
             
-            # Logic for Phase 3 (Katana)
-            elif provider_name == "Katana":
-                 # Katana v1.3.0 returns nested json: data['request']['endpoint']
-                 req = data.get("request", {})
-                 url = req.get("endpoint")
-                 if not url:
-                     url = data.get("url")
+            # For Katana/Gau -> Crawled URL
+            elif provider_name.lower() in ["katana", "gau"]:
+                 url = event["data"].get("url")
+                 # Fallback logic for Katana
+                 if not url and "request" in event["data"]:
+                     url = event["data"].get("request", {}).get("endpoint")
                  if url:
-                     await repo.add_crawled_url(db_target_domain, url, "Katana")
+                     await repo.add_crawled_url(db_target_domain, url, provider_name)
             
-            # Logic for Phase 5 (Nuclei)
-            elif provider_name == "Nuclei":
-                 # data is Dict
-                 info = data.get("info", {})
+            # For Nuclei -> Vulnerability
+            elif provider_name.lower() == "nuclei":
+                 info = event["data"].get("info", {})
                  name = info.get("name")
                  severity = info.get("severity")
-                 matched = data.get("matched-at")
-                 matcher = data.get("matcher-name")
+                 matched = event["data"].get("matched-at")
+                 matcher = event["data"].get("matcher-name")
                  desc = info.get("description")
                  
-                 if name and matched:
-                     await repo.add_vulnerability(db_target_domain, name, severity, matched, matcher, desc)
+                 if name:
+                     await repo.add_vulnerability(
+                         db_target_domain, 
+                         name, 
+                         severity, 
+                         matched, 
+                         matcher, 
+                         desc
+                     )
+
+        # Broadcast
+        if broadcast_callback:
+            await broadcast_callback(event)
     
-    return results
+    return [] # Changed from `results` to `[]` as `results` was not defined.
 
 # Wrapper functions to fit `run_tasks_in_parallel`'s expect signature `(target, config, **kwargs)`
 async def run_subfinder_adapter(target, config, **kwargs):
@@ -166,7 +155,7 @@ async def run_httpx_adapter(targets_list, domain, config, **kwargs):
 
 async def run_subdomain_enumeration_phase(domain, config, broadcast_callback=None, scan_id=None):
     """Orchestrates Phase 1 (Subdomains) using Providers."""
-    console.print(f"\n[bold blue]STARTING PHASE 1: SUBDOMAIN ENUMERATION for {domain} (ID: {scan_id})[/bold blue]\n")
+    logger.info(f"STARTING PHASE 1: SUBDOMAIN ENUMERATION for {domain} (ID: {scan_id})")
     
     repo = SqlAlchemyRepository()
     # Ensure root domain in DB
@@ -185,7 +174,7 @@ async def run_subdomain_enumeration_phase(domain, config, broadcast_callback=Non
         scan_id=scan_id
     )
 
-    console.print("\n[bold blue]PHASE 1 COMPLETE[/bold blue]\n")
+    logger.info("PHASE 1 COMPLETE")
     
     # Trigger Phase 2 (Live Host Discovery)
     await run_host_discovery_phase(domain, config, broadcast_callback=broadcast_callback, scan_id=scan_id)
@@ -193,7 +182,7 @@ async def run_subdomain_enumeration_phase(domain, config, broadcast_callback=Non
 
 async def run_host_discovery_phase(domain, config, broadcast_callback=None, scan_id=None, trigger_next_phase=True):
     """Phase 2: Live Host Discovery using HTTPX Provider."""
-    console.print(f"\n[bold blue]STARTING PHASE 2: HOST DISCOVERY for {domain} (ID: {scan_id})[/bold blue]\n")
+    logger.info(f"STARTING PHASE 2: HOST DISCOVERY for {domain} (ID: {scan_id})")
     repo = SqlAlchemyRepository()
     if broadcast_callback:
         await broadcast_callback({"type": "status", "message": "Starting Phase 2: Host Discovery"})
@@ -205,7 +194,7 @@ async def run_host_discovery_phase(domain, config, broadcast_callback=None, scan
 
     if broadcast_callback:
         await broadcast_callback({"type": "status", "message": "Phase 2 Complete"})
-    console.print("\n[bold blue]PHASE 2 COMPLETE[/bold blue]\n")
+    logger.info("PHASE 2 COMPLETE")
     
     if trigger_next_phase:
         await run_crawling_phase(domain, config, broadcast_callback=broadcast_callback, scan_id=scan_id)
@@ -213,7 +202,7 @@ async def run_host_discovery_phase(domain, config, broadcast_callback=None, scan
 
 async def run_crawling_phase(domain, config, broadcast_callback=None, scan_id=None):
     """Phase 3: Content Discovery (Legacy Wrappers)."""
-    console.print(f"\n[bold blue]STARTING PHASE 3: CRAWLING for {domain} (ID: {scan_id})[/bold blue]\n")
+    logger.info(f"STARTING PHASE 3: CRAWLING for {domain} (ID: {scan_id})")
     repo = SqlAlchemyRepository()
     if broadcast_callback:
         await broadcast_callback({"type": "status", "message": "Starting Phase 3: Content Discovery"})
@@ -226,7 +215,7 @@ async def run_crawling_phase(domain, config, broadcast_callback=None, scan_id=No
     if alive_subs:
         tasks.append(run_katana(alive_subs, domain, config, broadcast_callback, scan_id))
     else:
-        console.print("[!] No alive subdomains found for active crawling. Skipping Katana.")
+        logger.warning("No alive subdomains found for active crawling. Skipping Katana.")
         
     tasks.append(run_gau(None, domain, config, broadcast_callback, scan_id))
     
@@ -234,7 +223,7 @@ async def run_crawling_phase(domain, config, broadcast_callback=None, scan_id=No
 
     if broadcast_callback:
         await broadcast_callback({"type": "status", "message": "Phase 3 Complete"})
-    console.print("\n[bold blue]PHASE 3 COMPLETE[/bold blue]\n")
+    logger.info("PHASE 3 COMPLETE")
     
     await run_vuln_scanning_phase(domain, config, broadcast_callback=broadcast_callback, scan_id=scan_id)
     return []
@@ -244,7 +233,7 @@ from core.db_manager import get_all_crawled_urls
 
 async def run_vuln_scanning_phase(domain, config, broadcast_callback=None, scan_id=None):
     """Phase 5: Vulnerability Scanning (Nuclei)."""
-    console.print(f"\n[bold blue]STARTING PHASE 5: VULN SCANNING for {domain} (ID: {scan_id})[/bold blue]\n")
+    logger.info(f"STARTING PHASE 5: VULN SCANNING for {domain} (ID: {scan_id})")
     repo = SqlAlchemyRepository()
     if broadcast_callback:
         await broadcast_callback({"type": "status", "message": "Starting Phase 5: Nuclei Scanning"})
@@ -267,28 +256,28 @@ async def run_vuln_scanning_phase(domain, config, broadcast_callback=None, scan_
 
     if broadcast_callback:
         await broadcast_callback({"type": "status", "message": "Phase 5 Complete"})
-    console.print("\n[bold blue]PHASE 5 COMPLETE[/bold blue]\n")
+    logger.info("PHASE 5 COMPLETE")
     return []
 
 async def run_quick_scan(domain, config, broadcast_callback=None, scan_id=None):
     """Quick Scan Methodology (Refactored)."""
-    console.print(f"\n[bold green]STARTING QUICK SCAN for {domain} (ID: {scan_id})[/bold green]\n")
+    logger.info(f"STARTING QUICK SCAN for {domain} (ID: {scan_id})")
     if broadcast_callback:
         await broadcast_callback({"type": "status", "message": f"Starting Quick Scan for {domain}"})
 
     await repo.add_subdomain(domain, domain, "Root")
     
-    console.print("[yellow][*] Quick Scan - Phase 1: Subfinder Only[/yellow]")
+    logger.info("[*] Quick Scan - Phase 1: Subfinder Only")
     # Run Subfinder Adapter specifically
     await run_subfinder_adapter(domain, config, broadcast_callback=broadcast_callback, scan_id=scan_id)
     
-    console.print("[yellow][*] Quick Scan - Phase 2: Host Discovery[/yellow]")
+    logger.info("[*] Quick Scan - Phase 2: Host Discovery")
     await run_host_discovery_phase(domain, config, broadcast_callback, scan_id, trigger_next_phase=False)
     
-    console.print("[yellow][*] Quick Scan - Phase 3: Vulnerability Scanning (No Crawling)[/yellow]")
+    logger.info("[*] Quick Scan - Phase 3: Vulnerability Scanning (No Crawling)")
     await run_vuln_scanning_phase(domain, config, broadcast_callback, scan_id)
     
-    console.print("\n[bold green]*** Quick Scan Workflow Complete ***[/bold green]")
+    logger.info("*** Quick Scan Workflow Complete ***")
     if broadcast_callback:
         await broadcast_callback({"type": "status", "message": "Quick Scan Complete"})
 

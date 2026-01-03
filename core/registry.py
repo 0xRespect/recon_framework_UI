@@ -1,38 +1,46 @@
+
+import pkgutil
+import importlib
+import inspect
 from typing import Dict, Type, List
 from core.providers.base import BaseProvider
-from core.providers.subfinder import SubfinderProvider
-from core.providers.assetfinder import AssetfinderProvider
-from core.providers.findomain import FindomainProvider
-from core.providers.httpx import HTTPXProvider
-from core.providers.katana import KatanaProvider
-from core.providers.nuclei import NucleiProvider
 
 class ProviderRegistry:
-    """
-    Central registry to manage and execute tool providers.
-    """
     def __init__(self):
-        self._providers: Dict[str, BaseProvider] = {}
-        self._register_defaults()
-
-    def _register_defaults(self):
-        self.register_provider(SubfinderProvider())
-        self.register_provider(AssetfinderProvider())
-        self.register_provider(FindomainProvider())
-        self.register_provider(HTTPXProvider())
-        self.register_provider(KatanaProvider())
-        self.register_provider(NucleiProvider())
-
-    def register_provider(self, provider: BaseProvider):
-        """Register a new provider instance."""
-        self._providers[provider.name.lower()] = provider
+        self._providers: Dict[str, Type[BaseProvider]] = {}
+    
+    def register(self, name: str, provider_cls: Type[BaseProvider]):
+        """Registers a provider class under a normalized name."""
+        self._providers[name.lower()] = provider_cls
+        print(f"[Registry] Registered provider: {name}")
 
     def get_provider(self, name: str) -> BaseProvider:
-        """Get a provider by name."""
-        return self._providers.get(name.lower())
+        """Instantiates and returns a provider by name."""
+        provider_cls = self._providers.get(name.lower())
+        if not provider_cls:
+            raise ValueError(f"Provider '{name}' not found in registry.")
+        return provider_cls()
 
     def list_providers(self) -> List[str]:
         return list(self._providers.keys())
 
-# Singleton instance
+    def auto_discover(self, package_path: str = "core.providers"):
+        """Scans the package path for classes inheriting from BaseProvider."""
+        try:
+            package = importlib.import_module(package_path)
+            prefix = package.__name__ + "."
+            
+            for _, name, ispkg in pkgutil.iter_modules(package.__path__, prefix):
+                module = importlib.import_module(name)
+                
+                for item_name, item in inspect.getmembers(module, inspect.isclass):
+                    if issubclass(item, BaseProvider) and item is not BaseProvider:
+                        # Use the class name or a defined 'name' attribute
+                        # Convention: "SubfinderProvider" -> "subfinder" or explicit NAME attr
+                        provider_name = getattr(item, 'NAME', item.__name__.replace("Provider", "")).lower()
+                        self.register(provider_name, item)
+        except Exception as e:
+            print(f"[Registry] Discovery failed: {e}")
+
+# Global Registry Instance
 registry = ProviderRegistry()

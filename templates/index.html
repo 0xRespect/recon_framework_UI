@@ -120,18 +120,32 @@
             <!-- Dashboard View -->
             <div id="view-dashboard" class="content-view space-y-6">
                 <!-- ... dashboard content ... -->
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
-                        <h3 class="text-gray-400 text-sm font-medium">Total Targets</h3>
-                        <p class="text-3xl font-bold text-white mt-2" id="stat-targets">0</p>
+                        <h3 class="text-gray-400 text-sm font-medium">Subdomains</h3>
+                        <p class="text-3xl font-bold text-white mt-2" id="stat-subdomains">0</p>
                     </div>
                     <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
-                        <h3 class="text-gray-400 text-sm font-medium">Subdomains Discovered</h3>
-                        <p class="text-3xl font-bold text-green-400 mt-2" id="stat-subdomains">0</p>
+                        <h3 class="text-gray-400 text-sm font-medium">Alive Hosts</h3>
+                        <p class="text-3xl font-bold text-green-400 mt-2" id="stat-alive">0</p>
+                    </div>
+                    <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
+                        <h3 class="text-gray-400 text-sm font-medium">Crawled URLs</h3>
+                        <p class="text-3xl font-bold text-blue-400 mt-2" id="stat-urls">0</p>
                     </div>
                     <div class="bg-gray-800 p-6 rounded-xl border border-gray-700">
                         <h3 class="text-gray-400 text-sm font-medium">Vulnerabilities</h3>
                         <p class="text-3xl font-bold text-red-400 mt-2" id="stat-vulns">0</p>
+                    </div>
+                </div>
+
+                <!-- Task Monitor Widget -->
+                <div class="bg-gray-800 rounded-xl border border-gray-700 p-6">
+                    <h3 class="text-lg font-bold text-white mb-4 flex items-center">
+                        <i data-lucide="activity" class="w-5 h-5 mr-2 text-blue-500"></i> Active System Tasks
+                    </h3>
+                    <div id="task-monitor-list" class="space-y-3">
+                        <div class="text-gray-500 text-sm italic">Waiting for status...</div>
                     </div>
                 </div>
             </div>
@@ -276,6 +290,33 @@
                             <button id="btn-view-vulns" onclick="toggleDetailView('vulns')"
                                 class="px-3 py-1.5 bg-gray-700 text-gray-300 rounded text-sm font-bold hover:bg-gray-600">Vulns</button>
                         </div>
+                    </div>
+
+                    <!-- Filters -->
+                    <div class="flex flex-wrap gap-4 mb-4 items-center">
+                        <div class="relative flex-1 min-w-[200px]">
+                            <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-gray-500"></i>
+                            <input type="text" id="inv-search" onkeyup="filterInventory()" placeholder="Search URL..."
+                                class="w-full bg-gray-900 border border-gray-700 text-white rounded-lg pl-10 pr-4 py-2 focus:border-blue-500 outline-none">
+                        </div>
+                        <select id="inv-filter-tool" onchange="filterInventory()"
+                            class="bg-gray-900 border border-gray-700 text-gray-300 rounded-lg px-4 py-2 outline-none focus:border-blue-500">
+                            <option value="all">All Tools</option>
+                            <option value="subfinder">Subfinder</option>
+                            <option value="katana">Katana</option>
+                            <option value="gau">GAU</option>
+                            <option value="ffuf">FFUF</option>
+                            <option value="httpx">HTTPX</option>
+                        </select>
+                        <select id="inv-filter-tag" onchange="filterInventory()"
+                            class="bg-gray-900 border border-gray-700 text-gray-300 rounded-lg px-4 py-2 outline-none focus:border-blue-500">
+                            <option value="all">All Tags</option>
+                            <option value="xss">XSS</option>
+                            <option value="sqli">SQLi</option>
+                            <option value="lfi">LFI</option>
+                            <option value="secrets">Secrets</option>
+                        </select>
+                        <div class="text-sm text-gray-400 font-mono pt-2" id="inv-count-display"></div>
                     </div>
 
                     <div class="overflow-auto flex-1 border border-gray-700 rounded-lg">
@@ -632,6 +673,74 @@
             const statusDot = document.getElementById('ws-status-dot');
             const statusText = document.getElementById('ws-status-text');
 
+            // Polling Intervals
+            let statsInterval;
+            let tasksInterval;
+
+            // Start Polling
+            function startPolling() {
+                if (!statsInterval) statsInterval = setInterval(pollStats, 5000);
+                if (!tasksInterval) tasksInterval = setInterval(pollTasks, 3000);
+                pollStats();
+                pollTasks();
+            }
+
+            async function pollStats() {
+                try {
+                    const res = await fetch('/api/stats');
+                    const data = await res.json();
+                    document.getElementById('stat-subdomains').innerText = data.total_subdomains || 0;
+                    document.getElementById('stat-alive').innerText = data.alive_hosts || 0;
+                    document.getElementById('stat-urls').innerText = data.crawled_urls || 0;
+
+                    // Sum vulns
+                    let totalVulns = 0;
+                    if (data.vulns_by_severity) {
+                        Object.values(data.vulns_by_severity).forEach(v => totalVulns += v);
+                    }
+                    document.getElementById('stat-vulns').innerText = totalVulns;
+                } catch (e) { console.error("Stats poll failed", e); }
+            }
+
+            async function pollTasks() {
+                try {
+                    const res = await fetch('/api/status/tasks');
+                    const data = await res.json();
+                    const container = document.getElementById('task-monitor-list');
+
+                    let html = '';
+                    let hasTasks = false;
+
+                    for (const [worker, tasks] of Object.entries(data)) {
+                        if (tasks.length > 0) {
+                            hasTasks = true;
+                            tasks.forEach(task => {
+                                html += `
+                                <div class="bg-gray-900 rounded p-3 text-sm flex justify-between items-center border border-gray-700">
+                                    <div class="flex items-center">
+                                        <div class="w-2 h-2 rounded-full bg-green-500 animate-pulse mr-3"></div>
+                                        <div>
+                                            <div class="font-bold text-white">${task.name}</div>
+                                            <div class="text-xs text-gray-500 font-mono">${task.id}</div>
+                                        </div>
+                                    </div>
+                                    <div class="text-gray-400 text-xs">${task.args ? task.args : ''}</div>
+                                </div>`;
+                            });
+                        }
+                    }
+
+                    if (!hasTasks) {
+                        html = '<div class="text-gray-500 text-sm italic">No active background tasks. System idle.</div>';
+                    }
+
+                    container.innerHTML = html;
+                } catch (e) { console.error("Task poll failed", e); }
+            }
+
+            // Init
+            startPolling();
+
             // State
             let socket;
 
@@ -667,7 +776,9 @@
             }
 
             // Global Selection
+            // Global Selection
             let currentDomain = null;
+            let inventoryData = []; // Store raw inventory data for filtering
 
             function selectTarget(domain) {
                 currentDomain = domain;
@@ -880,12 +991,12 @@
             async function fetchInventory(domain) {
                 currentDetailDomain = domain;
                 document.getElementById('inventory-detail-title').innerText = `Assets: ${domain}`;
-                const tbody = document.getElementById('inventory-table-body');
 
                 // Restore Assets Header
                 const thead = document.querySelector('#inventory-detail table thead tr');
                 thead.innerHTML = '<th class="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Tool</th><th class="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">URL</th><th class="px-6 py-3 text-left text-xs font-bold text-gray-400 uppercase tracking-wider">Tags</th>';
 
+                const tbody = document.getElementById('inventory-table-body');
                 tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center"><i data-lucide="loader" class="animate-spin w-5 h-5 mx-auto"></i></td></tr>';
                 lucide.createIcons();
 
@@ -893,17 +1004,51 @@
                     const res = await fetch(`/api/inventory/${domain}`);
                     const data = await res.json();
 
-                    if (data.urls.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-500">No assets found.</td></tr>';
-                        return;
-                    }
+                    inventoryData = data.urls || [];
+                    renderInventoryTable(inventoryData);
 
-                    tbody.innerHTML = '';
-                    data.urls.forEach(u => {
-                        const tr = document.createElement('tr');
-                        tr.className = "hover:bg-gray-800";
+                } catch (e) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-red-500">Error loading data.</td></tr>';
+                }
+            }
 
-                        let tagsHtml = '';
+            function filterInventory() {
+                const search = document.getElementById('inv-search').value.toLowerCase();
+                const tool = document.getElementById('inv-filter-tool').value;
+                const tag = document.getElementById('inv-filter-tag').value;
+
+                const filtered = inventoryData.filter(u => {
+                    const matchSearch = u.url.toLowerCase().includes(search);
+                    const matchTool = tool === 'all' || (u.tool && u.tool.toLowerCase().includes(tool));
+                    // Check if tag is in array
+                    const matchTag = tag === 'all' || (u.tags && u.tags.includes(tag));
+                    return matchSearch && matchTool && matchTag;
+                });
+
+                renderInventoryTable(filtered);
+            }
+
+            function renderInventoryTable(data) {
+                const tbody = document.getElementById('inventory-table-body');
+                const countDisplay = document.getElementById('inv-count-display');
+
+                if (countDisplay) countDisplay.innerText = `Showing ${data.length} items`;
+
+                if (data.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-gray-500">No matching assets found.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = '';
+                // Limit rendering for performance if too large
+                const displayData = data.slice(0, 500);
+
+                displayData.forEach(u => {
+                    const tr = document.createElement('tr');
+                    tr.className = "hover:bg-gray-800";
+
+                    let tagsHtml = '';
+                    if (u.tags) {
                         u.tags.forEach(tag => {
                             let color = "bg-gray-700 text-gray-300";
                             if (['xss', 'sqli', 'lfi'].includes(tag)) color = "bg-red-900 text-red-200 border border-red-700";
@@ -911,17 +1056,20 @@
 
                             tagsHtml += `<span class="px-2 py-0.5 rounded text-xs mr-1 ${color}">${tag.toUpperCase()}</span>`;
                         });
+                    }
 
-                        tr.innerHTML = `
-                        <td class="p-3 text-gray-400 text-xs uppercase">${u.tool}</td>
-                        <td class="p-3 text-blue-400 break-all hover:underline cursor-pointer" onclick="window.open('${u.url}', '_blank')">${u.url}</td>
-                        <td class="p-3">${tagsHtml}</td>
-                    `;
-                        tbody.appendChild(tr);
-                    });
+                    tr.innerHTML = `
+                    <td class="p-3 text-gray-400 text-xs uppercase">${u.tool || 'N/A'}</td>
+                    <td class="p-3 text-blue-400 break-all hover:underline cursor-pointer" onclick="window.open('${u.url}', '_blank')">${u.url}</td>
+                    <td class="p-3">${tagsHtml}</td>
+                `;
+                    tbody.appendChild(tr);
+                });
 
-                } catch (e) {
-                    tbody.innerHTML = '<tr><td colspan="3" class="p-4 text-center text-red-500">Error loading data.</td></tr>';
+                if (data.length > 500) {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td colspan="3" class="p-2 text-center text-xs text-gray-500 italic">... and ${data.length - 500} more items (use search to filter) ...</td>`;
+                    tbody.appendChild(tr);
                 }
             }
 
