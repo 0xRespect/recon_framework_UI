@@ -17,8 +17,45 @@ from loguru import logger
 import sys
 
 # Configure logger (optional customization)
+import json
+import redis
+import sys
+
+# Get Redis URL for Sync Logging
+REDIS_URL = os.getenv('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+
+class RedisLogSink:
+    def __init__(self, channel="recon:updates"):
+        self.channel = channel
+        self.redis = redis.from_url(REDIS_URL, decode_responses=True)
+
+    def write(self, message):
+        # Loguru passes a formatted string or message object
+        # We want to parse it or just send raw
+        # Frontend expects {"type": "log", "message": ...}
+        
+        # Strip newlines
+        msg_content = message.strip()
+        if not msg_content:
+            return
+
+        payload = {
+            "type": "log",
+            "message": msg_content
+        }
+        try:
+            self.redis.publish(self.channel, json.dumps(payload))
+        except Exception as e:
+            # Fallback to stderr if redis fails
+            sys.stderr.write(f"Redis Log Error: {e}\n")
+
+# Remove default handler and add both stderr and Redis
 logger.remove()
 logger.add(sys.stderr, format="<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>")
+try:
+    logger.add(RedisLogSink(), format="[{time:HH:mm:ss}] <level>{message}</level>", level="INFO")
+except Exception as e:
+    print(f"Failed to add Redis Sink: {e}")
 # Legacy imports (to be phased out)
 from modules.content_discovery import run_katana, run_gau
 from modules.vuln_scanning import run_nuclei
@@ -67,12 +104,28 @@ async def run_provider_wrapper(target: str, config: Dict[str, Any], provider_nam
     # Limit concurrent tools per target domain (e.g. 5)
     await rate_limiter.acquire(f"target:{db_target_domain}", limit=5)
     
-    async for event in provider.run(target, config):
+    # Use stream_output for real-time events
+    async for event in provider.stream_output(target, config):
         # Persistence Logic
-        if event.get("type") == "subdomain":
+        
+        # Subdomain Logic (Subfinder, Assetfinder, Findomain emit "result" with string data)
+        if provider_name.lower() in ["subfinder", "assetfinder", "findomain"]:
+             if event.get("type") == "result":
+                 # Ensure we handle string data
+                 sub = event.get("data")
+                 if isinstance(sub, str):
+                     # Add to DB
+                     is_new = await repo.add_subdomain(db_target_domain, sub, provider_name)
+                     # Enrich event for broadcast
+                     event["type"] = "subdomain" # Remap for frontend?
+                     event["is_new"] = is_new
+                     event["data"] = {"subdomain": sub} # standardise structure
+        
+        # Standard "subdomain" type event (if any provider sends it explicitly)
+        elif event.get("type") == "subdomain":
             sub = event["data"].get("subdomain")
             if sub:
-                is_new = await repo.add_subdomain(sub, db_target_domain, provider_name)
+                is_new = await repo.add_subdomain(db_target_domain, sub, provider_name)
                 event["is_new"] = is_new
         
         elif event.get("type") == "result":
@@ -80,7 +133,8 @@ async def run_provider_wrapper(target: str, config: Dict[str, Any], provider_nam
             if provider_name.lower() == "httpx":
                 url = event["data"].get("url")
                 if url:
-                   await repo.update_subdomain_alive(url, db_target_domain)
+                   # Fix: db_target_domain is string, we need True (boolean)
+                   await repo.update_subdomain_alive(url, True)
             
             # For Katana/Gau -> Crawled URL
             elif provider_name.lower() in ["katana", "gau"]:

@@ -724,7 +724,12 @@
                                             <div class="text-xs text-gray-500 font-mono">${task.id}</div>
                                         </div>
                                     </div>
-                                    <div class="text-gray-400 text-xs">${task.args ? task.args : ''}</div>
+                                    <div class="flex items-center space-x-3">
+                                        <div class="text-gray-400 text-xs hidden sm:block">${task.args ? task.args : ''}</div>
+                                        <button onclick="cancelTask('${task.id}')" class="text-red-500 hover:text-red-400 text-xs font-bold border border-red-500 hover:bg-red-500/10 rounded px-2 py-1 transition-colors">
+                                            Cancel
+                                        </button>
+                                    </div>
                                 </div>`;
                             });
                         }
@@ -736,6 +741,19 @@
 
                     container.innerHTML = html;
                 } catch (e) { console.error("Task poll failed", e); }
+            }
+
+            async function cancelTask(taskId) {
+                if (!confirm('Are you sure you want to force cancel this task?')) return;
+                try {
+                    const res = await fetch(`/api/tasks/${taskId}/revoke`, { method: 'POST' });
+                    const data = await res.json();
+                    appendLog(`[SYSTEM] ${data.message}`, "text-yellow-400");
+                    pollTasks(); // Refresh immediately
+                } catch (e) {
+                    console.error("Cancel failed", e);
+                    alert("Failed to cancel task");
+                }
             }
 
             // Init
@@ -1129,7 +1147,8 @@
                     tbody.innerHTML = '';
 
                     // Update stats
-                    document.getElementById('stat-targets').innerText = data.count;
+                    // Update stats (Removed stat-targets from UI)
+                    // document.getElementById('stat-targets').innerText = data.count;
 
                     data.targets.forEach(t => {
                         const tr = document.createElement('tr');
@@ -1145,6 +1164,7 @@
                     `;
                         tbody.appendChild(tr);
                     });
+                    lucide.createIcons();
 
                     // Populate Scanner Dropdowns
                     ['sqli', 'xss', 'lfi', 'or'].forEach(type => {

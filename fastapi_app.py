@@ -169,16 +169,15 @@ async def start_scan(domain: str, background_tasks: BackgroundTasks, scan_type: 
     # The Event-Driven logic (Subdomain -> Host) will be handled by the Worker/Orchestrator reacting to events later.
     # For now, let's explicitly trigger Phase 1 (Subfinder) via Celery as a starting point.
     
-    from core.tasks import task_run_provider
+    from core.tasks import task_full_scan_pipeline
     
-    # Dispatch Subfinder Task
-    task_run_provider.delay("Subfinder", domain, config, scan_id)
-    task_run_provider.delay("Assetfinder", domain, config, scan_id)
-    task_run_provider.delay("Findomain", domain, config, scan_id) # if available
+    # Use the Robust Pipeline Task (Phase 1 -> 5 Sequentially)
+    task_full_scan_pipeline.delay(domain, config, scan_id)
     
-    # Also trigger HTTPX directly? No, event driven logic comes next.
-    # But user wants to see it working now.
-    # Let's start with Subdomain Enum which is Phase 1.
+    # OLD: Event Driven (Flaky for re-scans)
+    # task_run_provider.delay("Subfinder", domain, config, scan_id)
+    # task_run_provider.delay("Assetfinder", domain, config, scan_id)
+    # task_run_provider.delay("Findomain", domain, config, scan_id)
     
     return {"message": f"Distributed Scan started for {domain}", "scan_id": scan_id}
 
@@ -191,6 +190,17 @@ async def cancel_scan(scan_id: str):
     else:
         # It might be already finished or invalid
         return JSONResponse(status_code=404, content={"message": "Scan ID not found or already finished"})
+
+@app.post("/api/tasks/{task_id}/revoke")
+async def revoke_task(task_id: str):
+    """Revokes a specific Celery Task."""
+    from core.celery_config import celery_app
+    try:
+        celery_app.control.revoke(task_id, terminate=True)
+        await manager.broadcast({"type": "status", "message": f"Task {task_id} revoked by user."})
+        return {"message": f"Task {task_id} revoked"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 from pydantic import BaseModel
 from modules.vuln_scanning import run_nuclei, run_sqli_scan, run_xss_scan, run_lfi_scan, run_open_redirect_scan

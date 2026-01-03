@@ -53,8 +53,6 @@ class SqlAlchemyRepository(IRepository):
                 # print(f"DB Error: {e}")
                 await session.rollback()
                 return False
-                await session.rollback()
-                return False
 
     async def get_subdomains(self, target_domain: str) -> List[str]:
         async with self.session_factory() as session:
