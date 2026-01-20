@@ -24,7 +24,7 @@ class RedisRateLimiter:
     async def acquire(self, key: str, limit: int, period: int = 1, block: bool = True):
         """
         Acquire a token.
-        key: Identifier (e.g., 'rate_limit:rcrc.gov.sa')
+        key: Identifier (e.g., 'rate_limit:TEST.COM')
         limit: Max actions per period
         period: Time window in seconds
         block: If True, wait until token is available.
