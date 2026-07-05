@@ -1,0 +1,27 @@
+{
+  "version": "2.6.2",
+  "summary": {
+    "title": "New Threat Model",
+    "owner": "res",
+    "description": "res",
+    "id": 0
+  },
+  "detail": {
+    "contributors": [],
+    "diagrams": [
+      {
+        "id": 0,
+        "title": "New STRIDE diagramre",
+        "diagramType": "CIA",
+        "placeholder": "New CIA diagram description",
+        "thumbnail": "./public/content/images/thumbnail.cia.jpg",
+        "version": "2.6.2",
+        "cells": [],
+        "description": "re"
+      }
+    ],
+    "diagramTop": 1,
+    "reviewer": "res",
+    "threatTop": 0
+  }
+}
